@@ -39,8 +39,8 @@ type tt_frame = @{
     up: tt_frame_up,
 };
 
-pub type tt_reader = @tt_reader_;
-pub type tt_reader_ = {
+pub type tt_reader = @TTReader;
+pub struct TTReader {
     sp_diag: span_handler,
     interner: @ident_interner,
     mut cur: tt_frame,
@@ -51,7 +51,7 @@ pub type tt_reader_ = {
     /* cached: */
     mut cur_tok: Token,
     mut cur_span: span
-};
+}
 
 /** This can do Macro-By-Example transcription. On the other hand, if
  *  `src` contains no `tt_seq`s and `tt_nonterminal`s, `interp` can (and
@@ -60,19 +60,20 @@ pub fn new_tt_reader(sp_diag: span_handler, itr: @ident_interner,
                      interp: Option<std::oldmap::HashMap<ident,@named_match>>,
                      src: ~[ast::token_tree])
                   -> tt_reader {
-    let r = @{sp_diag: sp_diag, interner: itr,
-              mut cur: @{readme: src, mut idx: 0u, dotdotdoted: false,
-                         sep: None, up: tt_frame_up(option::None)},
-              interpolations: match interp { /* just a convienience */
-                None => std::oldmap::HashMap(),
-                Some(x) => x
-              },
-              mut repeat_idx: ~[],
-              mut repeat_len: ~[],
-              /* dummy values, never read: */
-              mut cur_tok: EOF,
-              mut cur_span: dummy_sp()
-             };
+    let r = @TTReader{
+        sp_diag: sp_diag, interner: itr,
+        mut cur: @{readme: src, mut idx: 0u, dotdotdoted: false,
+                   sep: None, up: tt_frame_up(option::None)},
+        interpolations: match interp { /* just a convienience */
+            None => std::oldmap::HashMap(),
+            Some(x) => x
+        },
+        mut repeat_idx: ~[],
+        mut repeat_len: ~[],
+        /* dummy values, never read: */
+        mut cur_tok: EOF,
+        mut cur_span: dummy_sp()
+    };
     tt_next_token(r); /* get cur_tok and cur_span set up */
     return r;
 }
@@ -88,16 +89,17 @@ pure fn dup_tt_frame(&&f: tt_frame) -> tt_frame {
      }
 }
 
-pub pure fn dup_tt_reader(r: &tt_reader_) -> tt_reader {
-    @{sp_diag: r.sp_diag, interner: r.interner,
-      mut cur: dup_tt_frame(r.cur),
-      interpolations: r.interpolations,
-      mut repeat_idx: copy r.repeat_idx, mut repeat_len: copy r.repeat_len,
-      mut cur_tok: r.cur_tok, mut cur_span: r.cur_span}
+pub pure fn dup_tt_reader(r: &TTReader) -> tt_reader {
+    @TTReader{
+        sp_diag: r.sp_diag, interner: r.interner,
+        mut cur: dup_tt_frame(r.cur),
+        interpolations: r.interpolations,
+        mut repeat_idx: copy r.repeat_idx, mut repeat_len: copy r.repeat_len,
+        mut cur_tok: r.cur_tok, mut cur_span: r.cur_span}
 }
 
 
-pure fn lookup_cur_matched_by_matched(r: &tt_reader_,
+pure fn lookup_cur_matched_by_matched(r: &TTReader,
                                       start: @named_match) -> @named_match {
     pure fn red(+ad: @named_match, idx: &uint) -> @named_match {
         match *ad {
@@ -111,15 +113,15 @@ pure fn lookup_cur_matched_by_matched(r: &tt_reader_,
     vec::foldl(start, r.repeat_idx, red)
 }
 
-fn lookup_cur_matched(r: &tt_reader_, name: ident) -> @named_match {
+fn lookup_cur_matched(r: &TTReader, name: ident) -> @named_match {
     lookup_cur_matched_by_matched(r, r.interpolations.get(name))
 }
 enum lis {
     lis_unconstrained, lis_constraint(uint, ident), lis_contradiction(~str)
 }
 
-fn lockstep_iter_size(t: token_tree, r: &tt_reader_) -> lis {
-    fn lis_merge(lhs: lis, rhs: lis, r: &tt_reader_) -> lis {
+fn lockstep_iter_size(t: token_tree, r: &TTReader) -> lis {
+    fn lis_merge(lhs: lis, rhs: lis, r: &TTReader) -> lis {
         match lhs {
           lis_unconstrained => rhs,
           lis_contradiction(_) => lhs,
@@ -151,7 +153,7 @@ fn lockstep_iter_size(t: token_tree, r: &tt_reader_) -> lis {
 }
 
 
-pub fn tt_next_token(r: &tt_reader_) -> TokenAndSpan {
+pub fn tt_next_token(r: &TTReader) -> TokenAndSpan {
     let ret_val = TokenAndSpan { tok: r.cur_tok, sp: r.cur_span };
     while r.cur.idx >= r.cur.readme.len() {
         /* done with this set; pop or repeat? */

@@ -8,15 +8,18 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// developing "outside" for now.
-extern mod syntax;
-//use core::prelude::*;
+//extern mod syntax;
+use core::prelude::*;
 
-use syntax::parse::{lexer, token};
-use syntax::diagnostic;
+//use syntax::parse::{lexer, token};
+//use syntax::diagnostic;
+//use syntax::codemap;
+use parse::{lexer, token};
+use diagnostic;
+use codemap;
 
 pub struct SpliceReader {
-    subreader : lexer::string_reader,
+    subreader : @lexer::StringReader,
 }
 
 pub impl SpliceReader : lexer::reader {
@@ -26,13 +29,14 @@ pub impl SpliceReader : lexer::reader {
     fn next_token(&self) -> lexer::TokenAndSpan {
         // deviously replace identifiers with "boogaloo"
         match self.subreader.next_token() {
-            TokenAndSpan{tok: IDENT(id,_), sp: sp} =>
-            TokenAndSpan{tok: IDENT(self.interner.intern("boogaloo"),
-                                    sp: sp}
+            lexer::TokenAndSpan{tok: token::LIT_STR(id), sp: sp} =>
+            lexer::TokenAndSpan{tok: token::LIT_STR(self.interner().intern(@~"boogaloo")),
+                         sp: sp},
+            any => any
         }
     }
-    fn fatal(&self, err: ~str) -> ! {
-        self.subreader.fatal(err)
+    fn fatal(&self, ++m: ~str) -> ! {
+        self.subreader.fatal(m);
     }
     fn span_diag(&self) -> diagnostic::span_handler {
         self.subreader.span_diag()
@@ -41,12 +45,23 @@ pub impl SpliceReader : lexer::reader {
         self.subreader.interner()
     }
     fn peek(&self) -> lexer::TokenAndSpan {
-        self.subreader.peek()
+        match self.subreader.peek() {
+            lexer::TokenAndSpan{tok: token::LIT_STR(id), sp: sp} =>
+            lexer::TokenAndSpan{tok: token::LIT_STR(self.interner().intern(@~"boogaloo")),
+                         sp: sp},
+            any => any
+        } 
     }
     // this just *can't* be a good idea...
     fn dup(&self) -> lexer::reader {
-        self.subreader.peek()
+        self.subreader.dup()
     }
+}
+
+pub fn new_splicereader (span_diagnostic: diagnostic::span_handler,
+                         filemap: @codemap::FileMap,
+                         itr: @token::ident_interner) -> @SpliceReader{
+    @SpliceReader{subreader: lexer::new_string_reader(span_diagnostic, filemap, itr)}
 }
 
 
