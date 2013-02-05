@@ -24,20 +24,17 @@ use core::vec;
 use std;
 use std::oldmap::HashMap;
 
-enum tt_frame_up { /* to break a circularity */
-    tt_frame_up(Option<tt_frame>)
-}
-
 /* FIXME #2811: figure out how to have a uniquely linked stack, and change to
    `~` */
 ///an unzipping of `token_tree`s
-type tt_frame = @{
+type tt_frame = @TTFrame;
+struct TTFrame{
     readme: ~[ast::token_tree],
     mut idx: uint,
     dotdotdoted: bool,
     sep: Option<Token>,
-    up: tt_frame_up,
-};
+    up: Option<@TTFrame>,
+}
 
 pub type tt_reader = @TTReader;
 pub struct TTReader {
@@ -62,8 +59,8 @@ pub fn new_tt_reader(sp_diag: span_handler, itr: @ident_interner,
                   -> tt_reader {
     let r = @TTReader{
         sp_diag: sp_diag, interner: itr,
-        mut cur: @{readme: src, mut idx: 0u, dotdotdoted: false,
-                   sep: None, up: tt_frame_up(option::None)},
+        mut cur: @TTFrame{readme: src, mut idx: 0u, dotdotdoted: false,
+                   sep: None, up: option::None},
         interpolations: match interp { /* just a convienience */
             None => std::oldmap::HashMap(),
             Some(x) => x
@@ -78,18 +75,18 @@ pub fn new_tt_reader(sp_diag: span_handler, itr: @ident_interner,
     return r;
 }
 
-pure fn dup_tt_frame(&&f: tt_frame) -> tt_frame {
-    @{readme: f.readme, mut idx: f.idx, dotdotdoted: f.dotdotdoted,
+pure fn dup_tt_frame(f: &TTFrame) -> @TTFrame {
+    @TTFrame{readme: f.readme, mut idx: f.idx, dotdotdoted: f.dotdotdoted,
       sep: f.sep, up: match f.up {
-        tt_frame_up(Some(up_frame)) => {
-          tt_frame_up(Some(dup_tt_frame(up_frame)))
+        Some(up_frame) => {
+          Some(dup_tt_frame(up_frame))
         }
-        tt_frame_up(none) => tt_frame_up(none)
+        None => None
       }
      }
 }
 
-pub pure fn dup_tt_reader(r: &TTReader) -> tt_reader {
+pub pure fn dup_tt_reader(r: &TTReader) -> @TTReader {
     @TTReader{
         sp_diag: r.sp_diag, interner: r.interner,
         mut cur: dup_tt_frame(r.cur),
@@ -161,11 +158,11 @@ pub fn tt_next_token(r: &TTReader) -> TokenAndSpan {
             || r.repeat_idx.last() == r.repeat_len.last() - 1 {
 
             match r.cur.up {
-              tt_frame_up(None) => {
+              None => {
                 r.cur_tok = EOF;
                 return ret_val;
               }
-              tt_frame_up(Some(tt_f)) => {
+              Some(tt_f) => {
                 if r.cur.dotdotdoted {
                     r.repeat_idx.pop();
                     r.repeat_len.pop();
@@ -192,8 +189,8 @@ pub fn tt_next_token(r: &TTReader) -> TokenAndSpan {
     with a `tt_tok`, even though it won't happen */
         match r.cur.readme[r.cur.idx] {
           tt_delim(ref tts) => {
-            r.cur = @{readme: (*tts), mut idx: 0u, dotdotdoted: false,
-                      sep: None, up: tt_frame_up(option::Some(r.cur)) };
+            r.cur = @TTFrame{readme: (*tts), mut idx: 0u, dotdotdoted: false,
+                      sep: None, up: Some(r.cur) };
             // if this could be 0-length, we'd need to potentially recur here
           }
           tt_tok(sp, ref tok) => {
@@ -228,12 +225,12 @@ pub fn tt_next_token(r: &TTReader) -> TokenAndSpan {
                 } else {
                     r.repeat_len.push(len);
                     r.repeat_idx.push(0u);
-                    r.cur = @{
+                      r.cur = @TTFrame{
                         readme: (*tts),
                         mut idx: 0u,
                         dotdotdoted: true,
                         sep: (*sep),
-                        up: tt_frame_up(option::Some(r.cur))
+                        up: Some(r.cur)
                     };
                 }
               }
