@@ -18,6 +18,9 @@ use parse::lexer::*;
 use parse::token::*;
 use diagnostic::*;
 use codemap::*;
+use ext::tt::transcribe::*;
+use ext::tt::transcribe::TTReader;
+
 
 // the SpliceReader has a stack of
 // TokenTrees to be used before getting
@@ -26,7 +29,7 @@ pub struct SpliceReader {
     subreader : @StringReader,
     // I'm guessing that dvec is the right
     // thing to use for a stack?
-    //preTrees: ~DVec<~TokenTree>
+    inserted_trees: DVec<@TTReader>
 }
 
 pub impl SpliceReader : reader {
@@ -34,13 +37,15 @@ pub impl SpliceReader : reader {
         self.subreader.is_eof()
     }
     fn next_token(&self) -> TokenAndSpan {
-        // deviously replace identifiers with "boogaloo"
+        self.subreader.next_token()
+/*        // deviously replace identifiers with "boogaloo"
         match self.subreader.next_token() {
             TokenAndSpan{tok: token::LIT_STR(id), sp: sp} =>
-            TokenAndSpan{tok: token::LIT_STR(self.interner().intern(@~"boogaloo")),
+            TokenAndSpan{tok: token::LIT_STR(self.interner().
+                           intern(@~"boogaloo")),
                          sp: sp},
             any => any
-        }
+        }*/
     }
     fn fatal(&self, ++m: ~str) -> ! {
         self.subreader.fatal(m);
@@ -52,12 +57,15 @@ pub impl SpliceReader : reader {
         self.subreader.interner()
     }
     fn peek(&self) -> TokenAndSpan {
+        self.subreader.peek()
+            /*
         match self.subreader.peek() {
             TokenAndSpan{tok: token::LIT_STR(id), sp: sp} =>
-            TokenAndSpan{tok: token::LIT_STR(self.interner().intern(@~"boogaloo")),
+            TokenAndSpan{tok: token::LIT_STR(self.interner().
+                             intern(@~"boogaloo")),
                          sp: sp},
             any => any
-        } 
+        } */
     }
     // this just *can't* be a good idea...
     fn dup(&self) -> reader {
@@ -66,13 +74,14 @@ pub impl SpliceReader : reader {
 }
 
 /*pub impl SpliceReader {
-    fn push_tree(&self, tt: ~TokenTree)    
+    fn push_tree(&self, tt: ~TokenTree)
 }*/
 
-pub fn new_splicereader (span_diagnostic: span_handler,
+pub fn new_splice_reader (span_diagnostic: span_handler,
                          filemap: @codemap::FileMap,
                          itr: @token::ident_interner) -> @SpliceReader{
-    @SpliceReader{subreader: new_string_reader(span_diagnostic, filemap, itr)}
+    @SpliceReader{subreader: new_string_reader(span_diagnostic, filemap, itr),
+                  inserted_trees : DVec()}
 }
 
 #[cfg(test)]
@@ -94,7 +103,7 @@ pub mod test {
         let id = ident_interner.intern(@~"z");
         let span_handler =
             mk_span_handler(mk_handler(None),@cm);
-        let string_reader = new_splicereader(span_handler,fm,ident_interner);
+        let string_reader = new_splice_reader(span_handler,fm,ident_interner);
         let tok1 = string_reader.next_token();
         let tok2 = TokenAndSpan{
             tok:token::IDENT(id, false),
@@ -102,8 +111,13 @@ pub mod test {
         check_equal (tok1,tok2);
         let tok3 = string_reader.next_token();
         let tok4 = TokenAndSpan{
-            tok:token::LIT_STR(ident_interner.intern (@~"boogaloo")),
+            tok:token::LIT_STR(ident_interner.intern (@~"abc")),
             sp:span {lo:BytePos(1),hi:BytePos(6),expn_info: None}};
         check_equal (tok3,tok4);
+    }
+
+    #[test] fn ttreadert1 () {
+
+
     }
 }

@@ -167,7 +167,7 @@ pub fn new_parser_from_source_str(sess: parse_sess, cfg: ast::crate_cfg,
                               +name: ~str, +ss: codemap::FileSubstr,
                               source: @~str) -> Parser {
     let filemap = sess.cm.new_filemap_w_substr(name, ss, source);
-    let srdr = splicereader::new_splicereader(sess.span_diagnostic, filemap,
+    let srdr = splicereader::new_splice_reader(sess.span_diagnostic, filemap,
                                         sess.interner);
     return Parser(sess, cfg, srdr as reader);
 }
@@ -178,8 +178,9 @@ pub fn new_parser_from_file(sess: parse_sess, cfg: ast::crate_cfg,
       result::Ok(move src) => {
 
           let filemap = sess.cm.new_filemap(path.to_str(), @move src);
-          let srdr = splicereader::new_splicereader(sess.span_diagnostic, filemap,
-                                                    sess.interner);
+          let srdr = splicereader::new_splice_reader(sess.span_diagnostic,
+                                                     filemap,
+                                                     sess.interner);
 
           Ok(Parser(sess, cfg, srdr as reader))
 
