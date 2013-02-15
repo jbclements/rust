@@ -348,6 +348,93 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
     es
 }
 
+// in order to have some notion of scoping for macros,
+// we want to implement the notion of a transformation
+// environment
+
+// NB! the mutability of the underlying maps means that
+// if expansion is out-of-order, a deeper scope may be
+// able to refer to a macro that was added to an enclosing
+// scope lexically later than the deeper scope.
+
+// a transformer env is either a base map or a map on top
+// of another chain.
+pub enum TransformerEnv {
+    TEC_Base(~TransformerMap),
+    TEC_Cons(~TransformerMap,~TransformerEnv)
+}
+
+type TransformerMap = Map<Name, SyntaxExtension>;
+
+// get the map from an env frame
+impl TransformerEnv{
+
+    // Constructor. I don't think we need a zero-arg one.
+    static pub fn new(init: ~TransformerMap) -> TransformerEnv {
+        TEC_Base(init)
+    }
+
+    // add a new frame to the environment (functionally)
+    pub fn push_frame (&self, map: ~TransformerMap) -> TransformerEnv {
+        TEC_Cons(map,self)
+    }
+
+    // no need for pop, it'll just be functional.
+
+    // utility fn...
+    fn get_map(&self) -> &self/TransformerMap {
+        match *self {
+            TEC_Base (~ref map) => map,
+            TEC_Cons (~ref map,_) => map
+        }
+    }
+}
+
+pub impl Map<Name,SyntaxExtension> for TransformerEnv {
+    pure fn contains_key (&self, key: &Name) -> bool {
+        match *self {
+            TEC_Base (map) => map.contains_key(key),
+            TEC_Cons (map,rest) =>
+            (map.contains_key(key)
+             || rest.contains_key(key))
+        }
+    }
+    // should each_key and each_value operate on shadowed
+    // names? I think not.
+    // NOTE: delaying implementing this....
+    pure fn each_key (&self, f: &fn (&Name)->bool) {
+        fail!(~"unimplemented 2013-02-15T10:01");
+    }
+
+    pure fn each_value (&self, f: &fn (&SyntaxExtension) -> bool) {
+        fail!(~"unimplemented 2013-02-15T10:02");
+    }
+
+    // Returns the SyntaxExtension that the name maps to.
+    // Goes down the chain 'til it finds one (or bottom out).
+    pure fn find (&self, key: &Name) -> Option<&SyntaxExtension> {
+        match self.get_map().find (key) {
+            Some(v) => Some(v),
+            None => match self {
+                TEC_Base (_) => None,
+                TEC_Cons (_,rest) => rest.find(key)
+            }
+        }
+    }
+
+    // insert the binding into the top-level map
+    fn insert (&mut self, +key: Name, +ext: SyntaxExtension) -> bool {
+        self.get_map().insert(key, ext)
+    }
+
+    // this should never be necessary!
+    fn remove (&mut self, +key: &Name) -> bool {
+        fail!(~"it should never be necessary to remove a binding");
+    }
+}
+
+type Name = uint;
+
 //
 // Local Variables:
 // mode: rust
