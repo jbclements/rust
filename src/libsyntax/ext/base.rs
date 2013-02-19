@@ -364,15 +364,19 @@ pub enum TransformerEnv {
     TEC_Cons(~TransformerMap,~TransformerEnv)
 }
 
-type TransformerMap = Map<Name, SyntaxExtension>;
+// nice to use the map trait, but it's not working per
+// comments by Niko... should be fixed once there's no
+// longer region inference?
+type TransformerMap = HashMap<Name, SyntaxExtension>;
+
+// try this outside...
+// Constructor. I don't think we need a zero-arg one.
+pub fn new_transformer_env(init: ~TransformerMap) -> TransformerEnv {
+    TEC_Base(init)
+}
 
 // get the map from an env frame
 impl TransformerEnv{
-
-    // Constructor. I don't think we need a zero-arg one.
-    static pub fn new(init: ~TransformerMap) -> TransformerEnv {
-        TEC_Base(init)
-    }
 
     // add a new frame to the environment (functionally)
     pub fn push_frame (&self, map: ~TransformerMap) -> TransformerEnv {
