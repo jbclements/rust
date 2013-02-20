@@ -21,7 +21,7 @@ use parse::{parser, parse_expr_from_source_str, new_parser_from_tts};
 
 use core::option;
 use core::vec;
-use std::oldmap::HashMap;
+use core::hashmap::LinearMap;
 
 pub fn expand_expr(exts: SyntaxExtensions, cx: ext_ctxt,
                    e: expr_, s: span, fld: ast_fold,
@@ -46,7 +46,7 @@ pub fn expand_expr(exts: SyntaxExtensions, cx: ext_ctxt,
                     cx.span_fatal(pth.span,
                                   fmt!("macro undefined: '%s'", *extname))
                   }
-                  Some(NormalTT(SyntaxExpanderTT{expander: exp,
+                  Some(NormalTT(&SyntaxExpanderTT{expander: exp,
                                                  span: exp_sp})) => {
                     cx.bt_push(ExpandedFrom(CallInfo{
                         call_site: s,

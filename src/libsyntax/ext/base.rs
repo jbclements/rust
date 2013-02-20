@@ -21,7 +21,8 @@ use parse::{parser, token};
 
 use core::io;
 use core::vec;
-use std::oldmap::HashMap;
+use core::hashmap::linear::LinearMap;
+
 
 // new-style macro! tt code:
 //
@@ -76,7 +77,7 @@ pub enum SyntaxExtension {
     ItemTT(SyntaxExpanderTTItem),
 }
 
-type SyntaxExtensions = HashMap<@~str, SyntaxExtension>;
+type SyntaxExtensions = LinearMap<@~str, SyntaxExtension>;
 
 // A temporary hard-coded map of methods for expanding syntax extension
 // AST nodes into full ASTs
@@ -89,7 +90,7 @@ pub fn syntax_expander_table() -> SyntaxExtensions {
     fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> SyntaxExtension {
         ItemTT(SyntaxExpanderTTItem{expander: f, span: None})
     }
-    let syntax_expanders = HashMap();
+    let syntax_expanders = LinearMap::new();
     syntax_expanders.insert(@~"macro_rules",
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
@@ -352,6 +353,11 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
 // we want to implement the notion of a transformation
 // environment
 
+//impl question: how to implement it? Initially, the
+// env will contain only macros, so it might be painful
+// to add an empty frame for every context. Let's just
+// get it working, first....
+
 // NB! the mutability of the underlying maps means that
 // if expansion is out-of-order, a deeper scope may be
 // able to refer to a macro that was added to an enclosing
@@ -367,11 +373,11 @@ pub enum TransformerEnv {
 // nice to use the map trait, but it's not working per
 // comments by Niko... should be fixed once there's no
 // longer region inference?
-type TransformerMap = HashMap<Name, SyntaxExtension>;
+type TransformerMap = LinearMap<Name, SyntaxExtension>;
 
 // try this outside...
 // Constructor. I don't think we need a zero-arg one.
-pub fn new_transformer_env(init: ~TransformerMap) -> TransformerEnv {
+pub fn new_transformer_env(+init: ~TransformerMap) -> TransformerEnv {
     TEC_Base(init)
 }
 
@@ -379,13 +385,16 @@ pub fn new_transformer_env(init: ~TransformerMap) -> TransformerEnv {
 impl TransformerEnv{
 
     // add a new frame to the environment (functionally)
-    pub fn push_frame (&self, map: ~TransformerMap) -> TransformerEnv {
+    pub fn push_frame (~self, +map: ~TransformerMap) -> TransformerEnv {
         TEC_Cons(map,self)
     }
 
     // no need for pop, it'll just be functional.
 
     // utility fn...
+
+    // ugh: can't get this to compile with mut because of the
+    // lack of flow sensitivity.
     fn get_map(&self) -> &self/TransformerMap {
         match *self {
             TEC_Base (~ref map) => map,
@@ -394,50 +403,54 @@ impl TransformerEnv{
     }
 }
 
-pub impl Map<Name,SyntaxExtension> for TransformerEnv {
+// traits just don't work anywhere...?
+//pub impl Map<Name,SyntaxExtension> for TransformerEnv {
+impl TransformerEnv {
     pure fn contains_key (&self, key: &Name) -> bool {
         match *self {
-            TEC_Base (map) => map.contains_key(key),
-            TEC_Cons (map,rest) =>
+            TEC_Base (ref map) => map.contains_key(key),
+            TEC_Cons (ref map,ref rest) =>
             (map.contains_key(key)
-             || rest.contains_key(key))
+             || rest.contains_key(key)) 
         }
     }
     // should each_key and each_value operate on shadowed
     // names? I think not.
     // NOTE: delaying implementing this....
-    pure fn each_key (&self, f: &fn (&Name)->bool) {
+    pure fn each_key (&self, _f: &fn (Name)->bool) {
         fail!(~"unimplemented 2013-02-15T10:01");
     }
 
-    pure fn each_value (&self, f: &fn (&SyntaxExtension) -> bool) {
+    pure fn each_value (&self, _f: &fn (&SyntaxExtension) -> bool) {
         fail!(~"unimplemented 2013-02-15T10:02");
     }
 
     // Returns the SyntaxExtension that the name maps to.
     // Goes down the chain 'til it finds one (or bottom out).
-    pure fn find (&self, key: &Name) -> Option<&SyntaxExtension> {
-        match self.get_map().find (key) {
-            Some(v) => Some(v),
-            None => match self {
+    fn find (&self, key: Name) -> Option<&self/SyntaxExtension> {
+        //None
+        match self.get_map().find (&key) {
+            Some(ref v) => Some(*v),
+            None => match *self {
                 TEC_Base (_) => None,
-                TEC_Cons (_,rest) => rest.find(key)
+                TEC_Cons (_,ref rest) => rest.find(key)
             }
         }
     }
 
     // insert the binding into the top-level map
-    fn insert (&mut self, +key: Name, +ext: SyntaxExtension) -> bool {
-        self.get_map().insert(key, ext)
+    fn insert (&mut self, key: Name, ext: SyntaxExtension) -> bool {
+        // can't abstract over get_map because of flow sensitivity...
+        match *self {
+            TEC_Base (~ref mut map) => map.insert(key, ext),
+            TEC_Cons (~ref mut map,_) => map.insert(key,ext)
+        }
     }
 
-    // this should never be necessary!
-    fn remove (&mut self, +key: &Name) -> bool {
-        fail!(~"it should never be necessary to remove a binding");
-    }
 }
 
 type Name = uint;
+
 
 //
 // Local Variables:
@@ -448,3 +461,5 @@ type Name = uint;
 // buffer-file-coding-system: utf-8-unix
 // End:
 //
+
+
