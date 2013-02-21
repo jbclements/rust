@@ -825,7 +825,7 @@ pub mod test {
     fn mk_ident (env: Env, id: ~str, is_mod_name: bool) -> token::Token {
         token::IDENT (env.interner.intern(@id),is_mod_name)
     }
-    
+
     #[test] fn doublecolonparsing () {
         let env = setup (~"a b");
         check_tokenization (env,

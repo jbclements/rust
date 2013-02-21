@@ -1269,23 +1269,12 @@ mod test {
     }
 
 
-    #[auto_decode]
-    #[auto_encode]
-    struct Node {id: uint}
-
     fn to_call_log (val: Encodable<TestEncoder>) -> ~[call] {
         let mut te = TestEncoder {call_log: ~[]};
         val.encode(&te);
         te.call_log
     }
-/*
-    #[test] fn encode_test () {
-        check_equal (to_call_log(Node{id:34}
-                                 as Encodable::<std::json::Encoder>),
-                     ~[CallToEnum (~"Node"),
-                       CallToEnumVariant]);
-    }
-*/
+
     #[auto_encode]
     enum Written {
         Book(uint,uint),
@@ -1307,7 +1296,7 @@ mod test {
 
     #[auto_encode]
     pub struct HasPos { pos : BPos }
-    
+
     #[test] fn encode_newtype_test () {
         check_equal (to_call_log (HasPos {pos:BPos(48)}
                                  as Encodable::<TestEncoder>),

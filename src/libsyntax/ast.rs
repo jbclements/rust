@@ -43,7 +43,6 @@ pub struct ident { repr: Name }
 pub enum SyntaxContext {
     MT,
     Mark (Mrk,~SyntaxContext),
-    // FIXME: check type of rename args
     Rename (~ident,Name,~SyntaxContext)
 }
 
