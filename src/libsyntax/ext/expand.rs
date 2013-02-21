@@ -214,7 +214,7 @@ pub fn expand_item_mac(exts: @mut SyntaxTransformerEnv,
         MRAny(_, item_maker, _) =>
             option::chain(item_maker(), |i| {fld.fold_item(i)}),
         MRDef(ref mdef) => {
-            exts.insert(@/*bad*/ copy mdef.name, (*mdef).ext);
+            exts.insert(@/*bad*/ copy mdef.name, @(*mdef).ext);
             None
         }
     };

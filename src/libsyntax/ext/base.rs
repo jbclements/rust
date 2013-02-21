@@ -80,7 +80,7 @@ pub enum SyntaxExtension {
 // nice to use the map trait, but it's not working per
 // comments by Niko... should be fixed once there's no
 // longer region inference?
-type SyntaxExtensions = LinearMap<Name, SyntaxExtension>;
+type SyntaxExtensions = LinearMap<Name, @SyntaxExtension>;
 type SyntaxTransformerEnv = TransformerEnv<Name, SyntaxExtension>;
 // want to change these to uints soon....
 type Name = @~str;
@@ -98,74 +98,74 @@ pub fn syntax_expander_table() -> @mut SyntaxTransformerEnv {
     }
     let mut syntax_expanders = LinearMap::new();
     syntax_expanders.insert(@~"macro_rules",
-                            builtin_item_tt(
+                            @builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
     syntax_expanders.insert(@~"fmt",
-                            builtin_normal_tt(ext::fmt::expand_syntax_ext));
+                            @builtin_normal_tt(ext::fmt::expand_syntax_ext));
     syntax_expanders.insert(
         @~"auto_encode",
-        ItemDecorator(ext::auto_encode::expand_auto_encode));
+        @ItemDecorator(ext::auto_encode::expand_auto_encode));
     syntax_expanders.insert(
         @~"auto_decode",
-        ItemDecorator(ext::auto_encode::expand_auto_decode));
+        @ItemDecorator(ext::auto_encode::expand_auto_decode));
     syntax_expanders.insert(@~"env",
-                            builtin_normal_tt(ext::env::expand_syntax_ext));
+                            @builtin_normal_tt(ext::env::expand_syntax_ext));
     syntax_expanders.insert(@~"concat_idents",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::concat_idents::expand_syntax_ext));
     syntax_expanders.insert(@~"log_syntax",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::log_syntax::expand_syntax_ext));
     syntax_expanders.insert(@~"deriving_eq",
-                            ItemDecorator(
+                            @ItemDecorator(
                                 ext::deriving::expand_deriving_eq));
     syntax_expanders.insert(@~"deriving_iter_bytes",
-                            ItemDecorator(
+                            @ItemDecorator(
                                 ext::deriving::expand_deriving_iter_bytes));
 
     // Quasi-quoting expanders
     syntax_expanders.insert(@~"quote_tokens",
-                       builtin_normal_tt(ext::quote::expand_quote_tokens));
+                       @builtin_normal_tt(ext::quote::expand_quote_tokens));
     syntax_expanders.insert(@~"quote_expr",
-                            builtin_normal_tt(ext::quote::expand_quote_expr));
+                       @builtin_normal_tt(ext::quote::expand_quote_expr));
     syntax_expanders.insert(@~"quote_ty",
-                            builtin_normal_tt(ext::quote::expand_quote_ty));
+                       @builtin_normal_tt(ext::quote::expand_quote_ty));
     syntax_expanders.insert(@~"quote_item",
-                            builtin_normal_tt(ext::quote::expand_quote_item));
+                       @builtin_normal_tt(ext::quote::expand_quote_item));
     syntax_expanders.insert(@~"quote_pat",
-                            builtin_normal_tt(ext::quote::expand_quote_pat));
+                       @builtin_normal_tt(ext::quote::expand_quote_pat));
     syntax_expanders.insert(@~"quote_stmt",
-                            builtin_normal_tt(ext::quote::expand_quote_stmt));
+                       @builtin_normal_tt(ext::quote::expand_quote_stmt));
 
     syntax_expanders.insert(@~"line",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_line));
     syntax_expanders.insert(@~"col",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_col));
     syntax_expanders.insert(@~"file",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_file));
     syntax_expanders.insert(@~"stringify",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_stringify));
     syntax_expanders.insert(@~"include",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_include));
     syntax_expanders.insert(@~"include_str",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_include_str));
     syntax_expanders.insert(@~"include_bin",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_include_bin));
     syntax_expanders.insert(@~"module_path",
-                            builtin_normal_tt(
+                            @builtin_normal_tt(
                                 ext::source_util::expand_mod));
     syntax_expanders.insert(@~"proto",
-                            builtin_item_tt(ext::pipes::expand_proto));
+                            @builtin_item_tt(ext::pipes::expand_proto));
     syntax_expanders.insert(
         @~"trace_macros",
-        builtin_normal_tt(ext::trace_macros::expand_trace_macros));
+        @builtin_normal_tt(ext::trace_macros::expand_trace_macros));
     @mut TransformerEnv::new(~syntax_expanders)
 }
 
@@ -369,11 +369,21 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
 // able to refer to a macro that was added to an enclosing
 // scope lexically later than the deeper scope.
 
+// Note on choice of representation: I've been pushed to
+// use a top-level managed pointer by some difficulties
+// with pushing and popping functionally, and the ownership
+// issues.  As a result, the values returned by the table
+// also need to be managed; the &self/... type that Maps
+// return won't work for things that need to get outside
+// of that managed pointer.  The easiest way to do this
+// is just to insist that the values in the tables are
+// managed to begin with.
+
 // a transformer env is either a base map or a map on top
 // of another chain.
 pub enum TransformerEnv<K,V> {
-    TEC_Base(~LinearMap<K,V>),
-    TEC_Cons(~LinearMap<K,V>,@mut TransformerEnv<K,V>)
+    TEC_Base(~LinearMap<K,@V>),
+    TEC_Cons(~LinearMap<K,@V>,@mut TransformerEnv<K,V>)
 }
 
 
@@ -381,7 +391,7 @@ pub enum TransformerEnv<K,V> {
 impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
 
     // Constructor. I don't think we need a zero-arg one.
-    static fn new(+init: ~LinearMap<K,V>) -> TransformerEnv<K,V> {
+    static fn new(+init: ~LinearMap<K,@V>) -> TransformerEnv<K,V> {
         TEC_Base(init)
     }
 
@@ -396,7 +406,7 @@ impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
 
     // ugh: can't get this to compile with mut because of the
     // lack of flow sensitivity.
-    fn get_map(&self) -> &self/LinearMap<K,V> {
+    fn get_map(&self) -> &self/LinearMap<K,@V> {
         match *self {
             TEC_Base (~ref map) => map,
             TEC_Cons (~ref map,_) => map
@@ -411,12 +421,12 @@ impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
             TEC_Base (ref map) => map.contains_key(key),
             TEC_Cons (ref map,ref rest) =>
             (map.contains_key(key)
-             || rest.contains_key(key)) 
+             || rest.contains_key(key))
         }
     }
     // should each_key and each_value operate on shadowed
     // names? I think not.
-    // NOTE: delaying implementing this....
+    // delaying implementing this....
     pure fn each_key (&self, _f: &fn (&K)->bool) {
         fail!(~"unimplemented 2013-02-15T10:01");
     }
@@ -430,7 +440,7 @@ impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
     // oh dear... the managed pointers are polluting everything....
     fn find (&self, key: &K) -> Option<@V> {
         match self.get_map().find (key) {
-            Some(ref v) => Some(@(copy **v)),
+            Some(ref v) => Some(**v),
             None => match *self {
                 TEC_Base (_) => None,
                 TEC_Cons (_,ref rest) => rest.find(key)
@@ -439,7 +449,7 @@ impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
     }
 
     // insert the binding into the top-level map
-    fn insert (&mut self, +key: K, +ext: V) -> bool {
+    fn insert (&mut self, +key: K, +ext: @V) -> bool {
         // can't abstract over get_map because of flow sensitivity...
         match *self {
             TEC_Base (~ref mut map) => map.insert(key, ext),
@@ -454,33 +464,29 @@ mod test {
     use super::*;
     use super::TransformerEnv;
     use util::testing::check_equal;
-    
+
     #[test] fn testenv () {
-        let x = 15;
-        let y = 16;
-        let z = 17;
         let mut a = LinearMap::new();
-        a.insert (@~"abc",x);
+        a.insert (@~"abc",@15);
         let m = @mut TransformerEnv::new(~a);
-        m.insert (@~"def",y);
-        // FIXME: #4492 (ICE)  check_equal(m.find(&@~"abc"),Some(&x));
-        //  ....               check_equal(m.find(&@~"def"),Some(&y));
-        check_equal(*(m.find(&@~"abc").get()),x);
-        check_equal(*(m.find(&@~"def").get()),y);
+        m.insert (@~"def",@16);
+        // FIXME: #4492 (ICE)  check_equal(m.find(&@~"abc"),Some(@15));
+        //  ....               check_equal(m.find(&@~"def"),Some(@16));
+        check_equal(*(m.find(&@~"abc").get()),15);
+        check_equal(*(m.find(&@~"def").get()),16);
         let n = @mut m.push_frame();
         // old bindings are still present:
-        check_equal(*(n.find(&@~"abc").get()),x);
-        check_equal(*(n.find(&@~"def").get()),y);
-        n.insert (@~"def",17);
+        check_equal(*(n.find(&@~"abc").get()),15);
+        check_equal(*(n.find(&@~"def").get()),16);
+        n.insert (@~"def",@17);
         // n shows the new binding
-        check_equal(*(n.find(&@~"abc").get()),x);
-        check_equal(*(n.find(&@~"def").get()),z);
+        check_equal(*(n.find(&@~"abc").get()),15);
+        check_equal(*(n.find(&@~"def").get()),17);
         // ... but m still has the old ones
-        // FIXME: #4492: check_equal(m.find(&@~"abc"),Some(&x));
-        // FIXME: #4492: check_equal(m.find(&@~"def"),Some(&y));
-        check_equal(*(m.find(&@~"abc").get()),x);
-        check_equal(*(m.find(&@~"def").get()),y);
-        
+        // FIXME: #4492: check_equal(m.find(&@~"abc"),Some(@15));
+        // FIXME: #4492: check_equal(m.find(&@~"def"),Some(@16));
+        check_equal(*(m.find(&@~"abc").get()),15);
+        check_equal(*(m.find(&@~"def").get()),16);
     }
 }
 
