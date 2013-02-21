@@ -77,11 +77,17 @@ pub enum SyntaxExtension {
     ItemTT(SyntaxExpanderTTItem),
 }
 
-type SyntaxExtensions = LinearMap<@~str, SyntaxExtension>;
+// nice to use the map trait, but it's not working per
+// comments by Niko... should be fixed once there's no
+// longer region inference?
+type SyntaxExtensions = LinearMap<Name, SyntaxExtension>;
+type SyntaxTransformerEnv = TransformerEnv<Name, SyntaxExtension>;
+// want to change these to uints soon....
+type Name = @~str;
 
 // A temporary hard-coded map of methods for expanding syntax extension
 // AST nodes into full ASTs
-pub fn syntax_expander_table() -> SyntaxExtensions {
+pub fn syntax_expander_table() -> @mut SyntaxTransformerEnv {
     // utility function to simplify creating NormalTT syntax extensions
     fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> SyntaxExtension {
         NormalTT(SyntaxExpanderTT{expander: f, span: None})
@@ -90,7 +96,7 @@ pub fn syntax_expander_table() -> SyntaxExtensions {
     fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> SyntaxExtension {
         ItemTT(SyntaxExpanderTTItem{expander: f, span: None})
     }
-    let syntax_expanders = LinearMap::new();
+    let mut syntax_expanders = LinearMap::new();
     syntax_expanders.insert(@~"macro_rules",
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
@@ -160,7 +166,7 @@ pub fn syntax_expander_table() -> SyntaxExtensions {
     syntax_expanders.insert(
         @~"trace_macros",
         builtin_normal_tt(ext::trace_macros::expand_trace_macros));
-    return syntax_expanders;
+    @mut TransformerEnv::new(~syntax_expanders)
 }
 
 // One of these is made during expansion and incrementally updated as we go;
@@ -365,48 +371,42 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
 
 // a transformer env is either a base map or a map on top
 // of another chain.
-pub enum TransformerEnv {
-    TEC_Base(~TransformerMap),
-    TEC_Cons(~TransformerMap,~TransformerEnv)
+pub enum TransformerEnv<K,V> {
+    TEC_Base(~LinearMap<K,V>),
+    TEC_Cons(~LinearMap<K,V>,@mut TransformerEnv<K,V>)
 }
 
-// nice to use the map trait, but it's not working per
-// comments by Niko... should be fixed once there's no
-// longer region inference?
-type TransformerMap = LinearMap<Name, SyntaxExtension>;
-
-// try this outside...
-// Constructor. I don't think we need a zero-arg one.
-pub fn new_transformer_env(+init: ~TransformerMap) -> TransformerEnv {
-    TEC_Base(init)
-}
 
 // get the map from an env frame
-impl TransformerEnv{
+impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
 
-    // add a new frame to the environment (functionally)
-    pub fn push_frame (~self, +map: ~TransformerMap) -> TransformerEnv {
-        TEC_Cons(map,self)
+    // Constructor. I don't think we need a zero-arg one.
+    static fn new(+init: ~LinearMap<K,V>) -> TransformerEnv<K,V> {
+        TEC_Base(init)
     }
 
-    // no need for pop, it'll just be functional.
+    // add a new frame to the environment (functionally)
+    fn push_frame (@mut self) -> TransformerEnv<K,V> {
+        TEC_Cons(~LinearMap::new() ,self)
+    }
+
+// no need for pop, it'll just be functional.
 
     // utility fn...
 
     // ugh: can't get this to compile with mut because of the
     // lack of flow sensitivity.
-    fn get_map(&self) -> &self/TransformerMap {
+    fn get_map(&self) -> &self/LinearMap<K,V> {
         match *self {
             TEC_Base (~ref map) => map,
             TEC_Cons (~ref map,_) => map
         }
     }
-}
 
 // traits just don't work anywhere...?
 //pub impl Map<Name,SyntaxExtension> for TransformerEnv {
-impl TransformerEnv {
-    pure fn contains_key (&self, key: &Name) -> bool {
+
+    pure fn contains_key (&self, key: &K) -> bool {
         match *self {
             TEC_Base (ref map) => map.contains_key(key),
             TEC_Cons (ref map,ref rest) =>
@@ -417,20 +417,20 @@ impl TransformerEnv {
     // should each_key and each_value operate on shadowed
     // names? I think not.
     // NOTE: delaying implementing this....
-    pure fn each_key (&self, _f: &fn (Name)->bool) {
+    pure fn each_key (&self, _f: &fn (&K)->bool) {
         fail!(~"unimplemented 2013-02-15T10:01");
     }
 
-    pure fn each_value (&self, _f: &fn (&SyntaxExtension) -> bool) {
+    pure fn each_value (&self, _f: &fn (&V) -> bool) {
         fail!(~"unimplemented 2013-02-15T10:02");
     }
 
     // Returns the SyntaxExtension that the name maps to.
     // Goes down the chain 'til it finds one (or bottom out).
-    fn find (&self, key: Name) -> Option<&self/SyntaxExtension> {
-        //None
-        match self.get_map().find (&key) {
-            Some(ref v) => Some(*v),
+    // oh dear... the managed pointers are polluting everything....
+    fn find (&self, key: &K) -> Option<@V> {
+        match self.get_map().find (key) {
+            Some(ref v) => Some(@(copy **v)),
             None => match *self {
                 TEC_Base (_) => None,
                 TEC_Cons (_,ref rest) => rest.find(key)
@@ -439,7 +439,7 @@ impl TransformerEnv {
     }
 
     // insert the binding into the top-level map
-    fn insert (&mut self, key: Name, ext: SyntaxExtension) -> bool {
+    fn insert (&mut self, +key: K, +ext: V) -> bool {
         // can't abstract over get_map because of flow sensitivity...
         match *self {
             TEC_Base (~ref mut map) => map.insert(key, ext),
@@ -449,8 +449,40 @@ impl TransformerEnv {
 
 }
 
-type Name = uint;
-
+#[cfg(test)]
+mod test {
+    use super::*;
+    use super::TransformerEnv;
+    use util::testing::check_equal;
+    
+    #[test] fn testenv () {
+        let x = 15;
+        let y = 16;
+        let z = 17;
+        let mut a = LinearMap::new();
+        a.insert (@~"abc",x);
+        let m = @mut TransformerEnv::new(~a);
+        m.insert (@~"def",y);
+        // FIXME: #4492 (ICE)  check_equal(m.find(&@~"abc"),Some(&x));
+        //  ....               check_equal(m.find(&@~"def"),Some(&y));
+        check_equal(*(m.find(&@~"abc").get()),x);
+        check_equal(*(m.find(&@~"def").get()),y);
+        let n = @mut m.push_frame();
+        // old bindings are still present:
+        check_equal(*(n.find(&@~"abc").get()),x);
+        check_equal(*(n.find(&@~"def").get()),y);
+        n.insert (@~"def",17);
+        // n shows the new binding
+        check_equal(*(n.find(&@~"abc").get()),x);
+        check_equal(*(n.find(&@~"def").get()),z);
+        // ... but m still has the old ones
+        // FIXME: #4492: check_equal(m.find(&@~"abc"),Some(&x));
+        // FIXME: #4492: check_equal(m.find(&@~"def"),Some(&y));
+        check_equal(*(m.find(&@~"abc").get()),x);
+        check_equal(*(m.find(&@~"def").get()),y);
+        
+    }
+}
 
 //
 // Local Variables:

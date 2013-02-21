@@ -23,7 +23,7 @@ use core::option;
 use core::vec;
 use core::hashmap::LinearMap;
 
-pub fn expand_expr(exts: SyntaxExtensions, cx: ext_ctxt,
+pub fn expand_expr(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
                    e: expr_, s: span, fld: ast_fold,
                    orig: fn@(expr_, span, ast_fold) -> (expr_, span))
                 -> (expr_, span) {
@@ -46,7 +46,7 @@ pub fn expand_expr(exts: SyntaxExtensions, cx: ext_ctxt,
                     cx.span_fatal(pth.span,
                                   fmt!("macro undefined: '%s'", *extname))
                   }
-                  Some(NormalTT(&SyntaxExpanderTT{expander: exp,
+                  Some(@NormalTT(SyntaxExpanderTT{expander: exp,
                                                  span: exp_sp})) => {
                     cx.bt_push(ExpandedFrom(CallInfo{
                         call_site: s,
@@ -92,7 +92,7 @@ pub fn expand_expr(exts: SyntaxExtensions, cx: ext_ctxt,
 //
 // NB: there is some redundancy between this and expand_item, below, and
 // they might benefit from some amount of semantic and language-UI merger.
-pub fn expand_mod_items(exts: SyntaxExtensions, cx: ext_ctxt,
+pub fn expand_mod_items(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
                         module_: ast::_mod, fld: ast_fold,
                         orig: fn@(ast::_mod, ast_fold) -> ast::_mod)
                      -> ast::_mod {
@@ -107,8 +107,8 @@ pub fn expand_mod_items(exts: SyntaxExtensions, cx: ext_ctxt,
             let mname = attr::get_attr_name(attr);
 
             match exts.find(&mname) {
-              None | Some(NormalTT(_)) | Some(ItemTT(*)) => items,
-              Some(ItemDecorator(dec_fn)) => {
+              None | Some(@NormalTT(_)) | Some(@ItemTT(*)) => items,
+              Some(@ItemDecorator(dec_fn)) => {
                   cx.bt_push(ExpandedFrom(CallInfo {
                       call_site: attr.span,
                       callee: NameAndSpan {
@@ -129,7 +129,7 @@ pub fn expand_mod_items(exts: SyntaxExtensions, cx: ext_ctxt,
 
 
 // When we enter a module, record it, for the sake of `module!`
-pub fn expand_item(exts: SyntaxExtensions,
+pub fn expand_item(exts: @mut SyntaxTransformerEnv,
                    cx: ext_ctxt, &&it: @ast::item, fld: ast_fold,
                    orig: fn@(&&v: @ast::item, ast_fold) -> Option<@ast::item>)
                 -> Option<@ast::item> {
@@ -155,7 +155,7 @@ pub fn expand_item(exts: SyntaxExtensions,
 
 // Support for item-position macro invocations, exactly the same
 // logic as for expression-position macro invocations.
-pub fn expand_item_mac(exts: SyntaxExtensions,
+pub fn expand_item_mac(exts: @mut SyntaxTransformerEnv,
                        cx: ext_ctxt, &&it: @ast::item,
                        fld: ast_fold) -> Option<@ast::item> {
 
@@ -171,7 +171,7 @@ pub fn expand_item_mac(exts: SyntaxExtensions,
         None => cx.span_fatal(pth.span,
                               fmt!("macro undefined: '%s!'", *extname)),
 
-        Some(NormalTT(ref expand)) => {
+        Some(@NormalTT(ref expand)) => {
             if it.ident != parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects no ident argument, \
@@ -187,7 +187,7 @@ pub fn expand_item_mac(exts: SyntaxExtensions,
             }));
             ((*expand).expander)(cx, it.span, tts)
         }
-        Some(ItemTT(ref expand)) => {
+        Some(@ItemTT(ref expand)) => {
             if it.ident == parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects an ident argument",
@@ -222,7 +222,7 @@ pub fn expand_item_mac(exts: SyntaxExtensions,
     return maybe_it;
 }
 
-pub fn expand_stmt(exts: SyntaxExtensions, cx: ext_ctxt,
+pub fn expand_stmt(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
                    && s: stmt_, sp: span, fld: ast_fold,
                    orig: fn@(&&s: stmt_, span, ast_fold) -> (stmt_, span))
                 -> (stmt_, span) {
@@ -242,7 +242,7 @@ pub fn expand_stmt(exts: SyntaxExtensions, cx: ext_ctxt,
         None =>
             cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extname)),
 
-        Some(NormalTT(
+        Some(@NormalTT(
             SyntaxExpanderTT{expander: exp, span: exp_sp})) => {
             cx.bt_push(ExpandedFrom(CallInfo {
                 call_site: sp,
@@ -364,6 +364,7 @@ pub fn expand_crate(parse_sess: @mut parse::ParseSess,
     let res = @f.fold_crate(*c);
     return res;
 }
+
 // Local Variables:
 // mode: rust
 // fill-column: 78;
