@@ -285,7 +285,7 @@ pub fn expand_block(extsbox: @mut SyntaxEnv, _cx: ext_ctxt,
     -> (blk_, span) {
     // see note below about treatment of exts table
     let oldexts = *extsbox;
-    *extsbox = @mut oldexts.push_frame();
+    *extsbox = oldexts.push_frame();
     let result = orig (blk,sp,fld);
     *extsbox = oldexts;
     result

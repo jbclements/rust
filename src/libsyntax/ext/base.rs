@@ -77,23 +77,39 @@ pub enum SyntaxExtension {
     ItemTT(SyntaxExpanderTTItem),
 }
 
-// nice to use the map trait, but it's not working per
-// comments by Niko... should be fixed once there's no
-// longer region inference?
-type SyntaxExtensions = LinearMap<Name, @SyntaxExtension>;
 type SyntaxEnv = @mut MapChain<Name, SyntaxExtension>;
-// want to change these to uints soon....
+
+// Name : the domain of SyntaxEnvs
+// want to change these to uints....
+// note that we use certain strings that are not legal as identifiers
+// to indicate, for instance, how blocks are supposed to behave.
 type Name = @~str;
+
+// Transformer : the codomain of SyntaxEnvs
+
+// NB: it may seem crazy to lump both of these into one environment;
+// what would it mean to bind "foo" to BlockLimit(true)? The idea
+// is that this follows the lead of MTWT, and accommodates growth
+// toward a more uniform syntax syntax (sorry) where blocks are just
+// another kind of transformer.
+
+type Transformer = SyntaxExtension;
+/*type Transformer = enum {
+    // this identifier maps to a syntax extension or macro
+    SE(SyntaxExtension),
+    // should blocks occurring here limit macro scopes?
+    BlockLimit(bool)
+}*/
 
 // A temporary hard-coded map of methods for expanding syntax extension
 // AST nodes into full ASTs
 pub fn syntax_expander_table() -> SyntaxEnv {
     // utility function to simplify creating NormalTT syntax extensions
-    fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> SyntaxExtension {
+    fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> Transformer {
         NormalTT(SyntaxExpanderTT{expander: f, span: None})
     }
     // utility function to simplify creating ItemTT syntax extensions
-    fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> SyntaxExtension {
+    fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> Transformer {
         ItemTT(SyntaxExpanderTTItem{expander: f, span: None})
     }
     let mut syntax_expanders = LinearMap::new();
@@ -166,7 +182,7 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     syntax_expanders.insert(
         @~"trace_macros",
         @builtin_normal_tt(ext::trace_macros::expand_trace_macros));
-    @mut MapChain::new(~syntax_expanders)
+    MapChain::new(~syntax_expanders)
 }
 
 // One of these is made during expansion and incrementally updated as we go;
@@ -357,7 +373,16 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
 
 // in order to have some notion of scoping for macros,
 // we want to implement the notion of a transformation
-// environment
+// environment.
+
+// This environment maps Names to Transformers.
+// Initially, this includes macro definitions and
+// block directives.
+
+
+
+// Actually, the following implementation is parameterized
+// by both key and value types.
 
 //impl question: how to implement it? Initially, the
 // env will contain only macros, so it might be painful
@@ -391,13 +416,13 @@ pub enum MapChain<K,V> {
 impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
 
     // Constructor. I don't think we need a zero-arg one.
-    static fn new(+init: ~LinearMap<K,@V>) -> MapChain<K,V> {
-        TEC_Base(init)
+    static fn new(+init: ~LinearMap<K,@V>) -> @mut MapChain<K,V> {
+        @mut TEC_Base(init)
     }
 
     // add a new frame to the environment (functionally)
-    fn push_frame (@mut self) -> MapChain<K,V> {
-        TEC_Cons(~LinearMap::new() ,self)
+    fn push_frame (@mut self) -> @mut MapChain<K,V> {
+        @mut TEC_Cons(~LinearMap::new() ,self)
     }
 
 // no need for pop, it'll just be functional.
@@ -435,9 +460,8 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
         fail!(~"unimplemented 2013-02-15T10:02");
     }
 
-    // Returns the SyntaxExtension that the name maps to.
+    // Returns a copy of the value that the name maps to.
     // Goes down the chain 'til it finds one (or bottom out).
-    // oh dear... the managed pointers are polluting everything....
     fn find (&self, key: &K) -> Option<@V> {
         match self.get_map().find (key) {
             Some(ref v) => Some(**v),
@@ -468,13 +492,13 @@ mod test {
     #[test] fn testenv () {
         let mut a = LinearMap::new();
         a.insert (@~"abc",@15);
-        let m = @mut MapChain::new(~a);
+        let m = MapChain::new(~a);
         m.insert (@~"def",@16);
         // FIXME: #4492 (ICE)  check_equal(m.find(&@~"abc"),Some(@15));
         //  ....               check_equal(m.find(&@~"def"),Some(@16));
         check_equal(*(m.find(&@~"abc").get()),15);
         check_equal(*(m.find(&@~"def").get()),16);
-        let n = @mut m.push_frame();
+        let n = m.push_frame();
         // old bindings are still present:
         check_equal(*(n.find(&@~"abc").get()),15);
         check_equal(*(n.find(&@~"def").get()),16);
