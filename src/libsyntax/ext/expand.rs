@@ -47,8 +47,8 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                     cx.span_fatal(pth.span,
                                   fmt!("macro undefined: '%s'", *extname))
                   }
-                  Some(@NormalTT(SyntaxExpanderTT{expander: exp,
-                                                 span: exp_sp})) => {
+                  Some(@SE(NormalTT(SyntaxExpanderTT{expander: exp,
+                                                 span: exp_sp}))) => {
                     cx.bt_push(ExpandedFrom(CallInfo{
                         call_site: s,
                         callee: NameAndSpan {
@@ -108,8 +108,7 @@ pub fn expand_mod_items(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
             let mname = attr::get_attr_name(attr);
 
             match (*extsbox).find(&mname) {
-              None | Some(@NormalTT(_)) | Some(@ItemTT(*)) => items,
-              Some(@ItemDecorator(dec_fn)) => {
+              Some(@SE(ItemDecorator(dec_fn))) => {
                   cx.bt_push(ExpandedFrom(CallInfo {
                       call_site: attr.span,
                       callee: NameAndSpan {
@@ -120,7 +119,9 @@ pub fn expand_mod_items(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                   let r = dec_fn(cx, attr.span, attr.node.value, items);
                   cx.bt_pop();
                   r
-              }
+              },
+              _ => items,
+
             }
         }
     };
@@ -172,7 +173,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
         None => cx.span_fatal(pth.span,
                               fmt!("macro undefined: '%s!'", *extname)),
 
-        Some(@NormalTT(ref expand)) => {
+        Some(@SE(NormalTT(ref expand))) => {
             if it.ident != parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects no ident argument, \
@@ -188,7 +189,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
             }));
             ((*expand).expander)(cx, it.span, tts)
         }
-        Some(@ItemTT(ref expand)) => {
+        Some(@SE(ItemTT(ref expand))) => {
             if it.ident == parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects an ident argument",
@@ -215,7 +216,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
         MRAny(_, item_maker, _) =>
             option::chain(item_maker(), |i| {fld.fold_item(i)}),
         MRDef(ref mdef) => {
-            exts.insert(@/*bad*/ copy mdef.name, @(*mdef).ext);
+            exts.insert(@/*bad*/ copy mdef.name, @SE((*mdef).ext));
             None
         }
     };
@@ -243,8 +244,8 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
         None =>
             cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extname)),
 
-        Some(@NormalTT(
-            SyntaxExpanderTT{expander: exp, span: exp_sp})) => {
+        Some(@SE(NormalTT(
+            SyntaxExpanderTT{expander: exp, span: exp_sp}))) => {
             cx.bt_push(ExpandedFrom(CallInfo {
                 call_site: sp,
                 callee: NameAndSpan { name: *extname, span: exp_sp }
@@ -279,16 +280,28 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
 
 }
 
-pub fn expand_block(extsbox: @mut SyntaxEnv, _cx: ext_ctxt,
+pub fn expand_block(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                     && blk: blk_, sp: span, fld: ast_fold,
                     orig: fn@(&&s: blk_, span, ast_fold) -> (blk_, span))
     -> (blk_, span) {
-    // see note below about treatment of exts table
-    let oldexts = *extsbox;
-    *extsbox = oldexts.push_frame();
-    let result = orig (blk,sp,fld);
-    *extsbox = oldexts;
-    result
+    match (*extsbox).find(&@~" block") {
+        // no scope limit on macros in this block, no need
+        // to push an exts frame:
+        Some(@ScopeMacros(false)) => {
+            orig (blk,sp,fld)
+        },
+        // this block should limit the scope of its macros:
+        Some(@ScopeMacros(true)) => {
+            // see note below about treatment of exts table
+            let oldexts = *extsbox;
+            *extsbox = oldexts.push_frame();
+            let result = orig (blk,sp,fld);
+            *extsbox = oldexts;
+            result
+        },
+        _ => cx.span_bug(sp,
+                         ~"expected ScopeMacros binding for \" block\"")
+    }
 }
 
 pub fn new_span(cx: ext_ctxt, sp: span) -> span {
@@ -406,7 +419,21 @@ mod test {
             @src,
             cfg,sess);
         expand_crate(sess,cfg,crate_ast);
+    }
 
+    // make sure that macros can leave scope
+    #[should_fail]
+    #[test] fn macros_are_scoped_test () {
+        let src = ~"fn bogus() {macro_rules! z (() => (3+4))}\
+                    fn inty() -> int { z!() }";
+        let sess = parse::new_parse_sess(None);
+        let cfg = ~[];
+        let crate_ast = parse::parse_crate_from_source_str(
+            ~"<test>",
+            @src,
+            cfg,sess);
+        // should fail:
+        expand_crate(sess,cfg,crate_ast);
     }
 
 }
