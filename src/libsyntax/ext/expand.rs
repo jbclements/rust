@@ -23,7 +23,7 @@ use core::option;
 use core::vec;
 use core::hashmap::LinearMap;
 
-pub fn expand_expr(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_expr(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                    e: expr_, s: span, fld: ast_fold,
                    orig: fn@(expr_, span, ast_fold) -> (expr_, span))
                 -> (expr_, span) {
@@ -93,7 +93,7 @@ pub fn expand_expr(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
 //
 // NB: there is some redundancy between this and expand_item, below, and
 // they might benefit from some amount of semantic and language-UI merger.
-pub fn expand_mod_items(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_mod_items(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                         module_: ast::_mod, fld: ast_fold,
                         orig: fn@(ast::_mod, ast_fold) -> ast::_mod)
                      -> ast::_mod {
@@ -130,7 +130,7 @@ pub fn expand_mod_items(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
 
 
 // When we enter a module, record it, for the sake of `module!`
-pub fn expand_item(extsbox: @mut @mut SyntaxTransformerEnv,
+pub fn expand_item(extsbox: @mut SyntaxEnv,
                    cx: ext_ctxt, &&it: @ast::item, fld: ast_fold,
                    orig: fn@(&&v: @ast::item, ast_fold) -> Option<@ast::item>)
                 -> Option<@ast::item> {
@@ -156,7 +156,7 @@ pub fn expand_item(extsbox: @mut @mut SyntaxTransformerEnv,
 
 // Support for item-position macro invocations, exactly the same
 // logic as for expression-position macro invocations.
-pub fn expand_item_mac(exts: @mut SyntaxTransformerEnv,
+pub fn expand_item_mac(exts: SyntaxEnv,
                        cx: ext_ctxt, &&it: @ast::item,
                        fld: ast_fold) -> Option<@ast::item> {
 
@@ -223,7 +223,7 @@ pub fn expand_item_mac(exts: @mut SyntaxTransformerEnv,
     return maybe_it;
 }
 
-pub fn expand_stmt(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_stmt(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                    && s: stmt_, sp: span, fld: ast_fold,
                    orig: fn@(&&s: stmt_, span, ast_fold) -> (stmt_, span))
                 -> (stmt_, span) {
@@ -279,7 +279,7 @@ pub fn expand_stmt(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
 
 }
 
-pub fn expand_block(extsbox: @mut @mut SyntaxTransformerEnv, _cx: ext_ctxt,
+pub fn expand_block(extsbox: @mut SyntaxEnv, _cx: ext_ctxt,
                     && blk: blk_, sp: span, fld: ast_fold,
                     orig: fn@(&&s: blk_, span, ast_fold) -> (blk_, span))
     -> (blk_, span) {

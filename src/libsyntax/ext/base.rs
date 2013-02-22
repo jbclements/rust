@@ -81,13 +81,13 @@ pub enum SyntaxExtension {
 // comments by Niko... should be fixed once there's no
 // longer region inference?
 type SyntaxExtensions = LinearMap<Name, @SyntaxExtension>;
-type SyntaxTransformerEnv = TransformerEnv<Name, SyntaxExtension>;
+type SyntaxEnv = @mut MapChain<Name, SyntaxExtension>;
 // want to change these to uints soon....
 type Name = @~str;
 
 // A temporary hard-coded map of methods for expanding syntax extension
 // AST nodes into full ASTs
-pub fn syntax_expander_table() -> @mut SyntaxTransformerEnv {
+pub fn syntax_expander_table() -> SyntaxEnv {
     // utility function to simplify creating NormalTT syntax extensions
     fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> SyntaxExtension {
         NormalTT(SyntaxExpanderTT{expander: f, span: None})
@@ -166,7 +166,7 @@ pub fn syntax_expander_table() -> @mut SyntaxTransformerEnv {
     syntax_expanders.insert(
         @~"trace_macros",
         @builtin_normal_tt(ext::trace_macros::expand_trace_macros));
-    @mut TransformerEnv::new(~syntax_expanders)
+    @mut MapChain::new(~syntax_expanders)
 }
 
 // One of these is made during expansion and incrementally updated as we go;
@@ -381,22 +381,22 @@ pub fn get_exprs_from_tts(cx: ext_ctxt, tts: ~[ast::token_tree])
 
 // a transformer env is either a base map or a map on top
 // of another chain.
-pub enum TransformerEnv<K,V> {
+pub enum MapChain<K,V> {
     TEC_Base(~LinearMap<K,@V>),
-    TEC_Cons(~LinearMap<K,@V>,@mut TransformerEnv<K,V>)
+    TEC_Cons(~LinearMap<K,@V>,@mut MapChain<K,V>)
 }
 
 
 // get the map from an env frame
-impl <K: Eq + Hash + IterBytes ,V: Copy> TransformerEnv<K,V>{
+impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
 
     // Constructor. I don't think we need a zero-arg one.
-    static fn new(+init: ~LinearMap<K,@V>) -> TransformerEnv<K,V> {
+    static fn new(+init: ~LinearMap<K,@V>) -> MapChain<K,V> {
         TEC_Base(init)
     }
 
     // add a new frame to the environment (functionally)
-    fn push_frame (@mut self) -> TransformerEnv<K,V> {
+    fn push_frame (@mut self) -> MapChain<K,V> {
         TEC_Cons(~LinearMap::new() ,self)
     }
 
@@ -414,7 +414,7 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> TransformerEnv<K,V>{
     }
 
 // traits just don't work anywhere...?
-//pub impl Map<Name,SyntaxExtension> for TransformerEnv {
+//pub impl Map<Name,SyntaxExtension> for MapChain {
 
     pure fn contains_key (&self, key: &K) -> bool {
         match *self {
@@ -462,13 +462,13 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> TransformerEnv<K,V>{
 #[cfg(test)]
 mod test {
     use super::*;
-    use super::TransformerEnv;
+    use super::MapChain;
     use util::testing::check_equal;
 
     #[test] fn testenv () {
         let mut a = LinearMap::new();
         a.insert (@~"abc",@15);
-        let m = @mut TransformerEnv::new(~a);
+        let m = @mut MapChain::new(~a);
         m.insert (@~"def",@16);
         // FIXME: #4492 (ICE)  check_equal(m.find(&@~"abc"),Some(@15));
         //  ....               check_equal(m.find(&@~"def"),Some(@16));
