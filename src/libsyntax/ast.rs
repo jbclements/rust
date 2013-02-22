@@ -1258,6 +1258,7 @@ pub enum item_ {
               Option<@trait_ref>, // (optional) trait this impl implements
               @Ty, // self
               ~[@method]),
+    // a macro invocation (which includes macro definition)
     item_mac(mac),
 }
 

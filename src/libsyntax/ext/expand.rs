@@ -279,7 +279,7 @@ pub fn expand_stmt(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
 
 }
 
-pub fn expand_block(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_block(extsbox: @mut @mut SyntaxTransformerEnv, _cx: ext_ctxt,
                     && blk: blk_, sp: span, fld: ast_fold,
                     orig: fn@(&&s: blk_, span, ast_fold) -> (blk_, span))
     -> (blk_, span) {
@@ -296,10 +296,9 @@ pub fn new_span(cx: ext_ctxt, sp: span) -> span {
     return span {lo: sp.lo, hi: sp.hi, expn_info: cx.backtrace()};
 }
 
-// FIXME (#2247): this is a terrible kludge to inject some macros into
-// the default compilation environment. When the macro-definition system
-// is substantially more mature, these should move from here, into a
-// compiled part of libcore at very least.
+// FIXME (#2247): this is a moderately bad kludge to inject some macros into
+// the default compilation environment. It would be much nicer to use
+// a mechanism like syntax_quote to ensure hygiene.
 
 pub fn core_macros() -> ~str {
     return
@@ -378,6 +377,8 @@ pub fn expand_crate(parse_sess: @mut parse::ParseSess,
         new_span: |a| new_span(cx, a),
         .. *afp};
     let f = make_fold(f_pre);
+    // add a bunch of macros as though they were placed at the
+    // head of the program (ick).
     let cm = parse_expr_from_source_str(~"<core-macros>",
                                         @core_macros(),
                                         cfg,
@@ -389,6 +390,25 @@ pub fn expand_crate(parse_sess: @mut parse::ParseSess,
 
     let res = @f.fold_crate(*c);
     return res;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    // make sure that fail! is present
+    #[test] fn fail_exists_test () {
+        let src = ~"fn main() { fail!(~\"something appropriately gloomy\");}";
+        let sess = parse::new_parse_sess(None);
+        let cfg = ~[];
+        let crate_ast = parse::parse_crate_from_source_str(
+            ~"<test>",
+            @src,
+            cfg,sess);
+        expand_crate(sess,cfg,crate_ast);
+
+    }
+
 }
 
 // Local Variables:
