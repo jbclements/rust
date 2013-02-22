@@ -388,7 +388,7 @@ pub enum TransformerEnv<K,V> {
 
 
 // get the map from an env frame
-impl <K: Eq Hash IterBytes ,V: Copy> TransformerEnv<K,V>{
+impl <K: Eq + Hash + IterBytes ,V: Copy> TransformerEnv<K,V>{
 
     // Constructor. I don't think we need a zero-arg one.
     static fn new(+init: ~LinearMap<K,@V>) -> TransformerEnv<K,V> {

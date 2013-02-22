@@ -23,7 +23,7 @@ use core::option;
 use core::vec;
 use core::hashmap::LinearMap;
 
-pub fn expand_expr(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_expr(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
                    e: expr_, s: span, fld: ast_fold,
                    orig: fn@(expr_, span, ast_fold) -> (expr_, span))
                 -> (expr_, span) {
@@ -41,7 +41,8 @@ pub fn expand_expr(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
                 /* using idents and token::special_idents would make the
                 the macro names be hygienic */
                 let extname = cx.parse_sess().interner.get(pth.idents[0]);
-                match exts.find(&extname) {
+                // leaving explicit deref here to highlight unbox op:
+                match (*extsbox).find(&extname) {
                   None => {
                     cx.span_fatal(pth.span,
                                   fmt!("macro undefined: '%s'", *extname))
@@ -92,7 +93,7 @@ pub fn expand_expr(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
 //
 // NB: there is some redundancy between this and expand_item, below, and
 // they might benefit from some amount of semantic and language-UI merger.
-pub fn expand_mod_items(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_mod_items(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
                         module_: ast::_mod, fld: ast_fold,
                         orig: fn@(ast::_mod, ast_fold) -> ast::_mod)
                      -> ast::_mod {
@@ -106,7 +107,7 @@ pub fn expand_mod_items(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
         do vec::foldr(item.attrs, ~[*item]) |attr, items| {
             let mname = attr::get_attr_name(attr);
 
-            match exts.find(&mname) {
+            match (*extsbox).find(&mname) {
               None | Some(@NormalTT(_)) | Some(@ItemTT(*)) => items,
               Some(@ItemDecorator(dec_fn)) => {
                   cx.bt_push(ExpandedFrom(CallInfo {
@@ -129,7 +130,7 @@ pub fn expand_mod_items(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
 
 
 // When we enter a module, record it, for the sake of `module!`
-pub fn expand_item(exts: @mut SyntaxTransformerEnv,
+pub fn expand_item(extsbox: @mut @mut SyntaxTransformerEnv,
                    cx: ext_ctxt, &&it: @ast::item, fld: ast_fold,
                    orig: fn@(&&v: @ast::item, ast_fold) -> Option<@ast::item>)
                 -> Option<@ast::item> {
@@ -138,7 +139,7 @@ pub fn expand_item(exts: @mut SyntaxTransformerEnv,
       _ => false
     };
     let maybe_it = match it.node {
-      ast::item_mac(*) => expand_item_mac(exts, cx, it, fld),
+      ast::item_mac(*) => expand_item_mac(*extsbox, cx, it, fld),
       _ => Some(it)
     };
 
@@ -222,7 +223,7 @@ pub fn expand_item_mac(exts: @mut SyntaxTransformerEnv,
     return maybe_it;
 }
 
-pub fn expand_stmt(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
+pub fn expand_stmt(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
                    && s: stmt_, sp: span, fld: ast_fold,
                    orig: fn@(&&s: stmt_, span, ast_fold) -> (stmt_, span))
                 -> (stmt_, span) {
@@ -238,7 +239,7 @@ pub fn expand_stmt(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
 
     assert(vec::len(pth.idents) == 1u);
     let extname = cx.parse_sess().interner.get(pth.idents[0]);
-    let (fully_expanded, sp) = match exts.find(&extname) {
+    let (fully_expanded, sp) = match (*extsbox).find(&extname) {
         None =>
             cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extname)),
 
@@ -271,13 +272,24 @@ pub fn expand_stmt(exts: @mut SyntaxTransformerEnv, cx: ext_ctxt,
         }
     };
 
-    return (match fully_expanded {
+    (match fully_expanded {
         stmt_expr(e, stmt_id) if semi => stmt_semi(e, stmt_id),
         _ => { fully_expanded } /* might already have a semi */
     }, sp)
 
 }
 
+pub fn expand_block(extsbox: @mut @mut SyntaxTransformerEnv, cx: ext_ctxt,
+                    && blk: blk_, sp: span, fld: ast_fold,
+                    orig: fn@(&&s: blk_, span, ast_fold) -> (blk_, span))
+    -> (blk_, span) {
+    // see note below about treatment of exts table
+    let oldexts = *extsbox;
+    *extsbox = @mut oldexts.push_frame();
+    let result = orig (blk,sp,fld);
+    *extsbox = oldexts;
+    result
+}
 
 pub fn new_span(cx: ext_ctxt, sp: span) -> span {
     /* this discards information in the case of macro-defining macros */
@@ -339,16 +351,30 @@ pub fn core_macros() -> ~str {
 }";
 }
 
+// could cfg just be a borrowed pointer here?
+
+
 pub fn expand_crate(parse_sess: @mut parse::ParseSess,
                     cfg: ast::crate_cfg, c: @crate) -> @crate {
-    let exts = syntax_expander_table();
+    // adding *another* layer of indirection here so that the block
+    // visitor can swap out one exts table for another for the duration
+    // of the block.  The cleaner alternative would be to thread the
+    // exts table through the fold, but that would require updating
+    // every method/element of AstFoldFns in fold.rs.
+    let extsbox = @mut syntax_expander_table();
     let afp = default_ast_fold();
     let cx: ext_ctxt = mk_ctxt(parse_sess, cfg);
     let f_pre = @AstFoldFns {
-        fold_expr: |a,b,c| expand_expr(exts, cx, a, b, c, afp.fold_expr),
-        fold_mod: |a,b| expand_mod_items(exts, cx, a, b, afp.fold_mod),
-        fold_item: |a,b| expand_item(exts, cx, a, b, afp.fold_item),
-        fold_stmt: |a,b,c| expand_stmt(exts, cx, a, b, c, afp.fold_stmt),
+        fold_expr: |expr,span,recur|
+            expand_expr(extsbox, cx, expr, span, recur, afp.fold_expr),
+        fold_mod: |modd,recur|
+            expand_mod_items(extsbox, cx, modd, recur, afp.fold_mod),
+        fold_item: |item,recur|
+            expand_item(extsbox, cx, item, recur, afp.fold_item),
+        fold_stmt: |stmt,span,recur|
+            expand_stmt(extsbox, cx, stmt, span, recur, afp.fold_stmt),
+        fold_block: |blk,span,recur|
+            expand_block (extsbox, cx, blk, span, recur, afp.fold_block),
         new_span: |a| new_span(cx, a),
         .. *afp};
     let f = make_fold(f_pre);
