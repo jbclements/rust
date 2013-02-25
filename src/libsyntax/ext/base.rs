@@ -27,7 +27,7 @@ use core::hashmap::linear::LinearMap;
 // new-style macro! tt code:
 //
 //    SyntaxExpanderTT, SyntaxExpanderTTItem, MacResult,
-//    NormalTT, ItemTT
+//    NormalTT, IdentTT
 //
 // also note that ast::mac used to have a bunch of extraneous cases and
 // is now probably a redundant AST node, can be merged with
@@ -61,7 +61,10 @@ pub enum MacResult {
     MRExpr(@ast::expr),
     MRItem(@ast::item),
     MRAny(fn@()-> @ast::expr, fn@()-> Option<@ast::item>, fn@()->@ast::stmt),
-    MRDef(MacroDef)
+    MRDef(MacroDef),
+    // sigh... a hack for enabling include_macros!. This would disappear
+    // if we switched to TT-based macros.
+    MRMacroDefs(@ast::expr)
 }
 
 pub enum SyntaxExtension {
@@ -72,9 +75,15 @@ pub enum SyntaxExtension {
     // Token-tree expanders
     NormalTT(SyntaxExpanderTT),
 
+    // An IdentTT is a macro that has an
+    // identifier in between the name of the
+    // macro and the argument. Currently,
+    // the only examples of this are
+    // macro_rules! and proto!
+
     // perhaps macro_rules! will lose its odd special identifier argument,
     // and this can go away also
-    ItemTT(SyntaxExpanderTTItem),
+    IdentTT(SyntaxExpanderTTItem),
 }
 
 type SyntaxEnv = @mut MapChain<Name, Transformer>;
@@ -107,14 +116,14 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> @Transformer {
         @SE(NormalTT(SyntaxExpanderTT{expander: f, span: None}))
     }
-    // utility function to simplify creating ItemTT syntax extensions
+    // utility function to simplify creating IdentTT syntax extensions
     fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> @Transformer {
-        @SE(ItemTT(SyntaxExpanderTTItem{expander: f, span: None}))
+        @SE(IdentTT(SyntaxExpanderTTItem{expander: f, span: None}))
     }
     let mut syntax_expanders = LinearMap::new();
     // NB identifier starts with space, and can't conflict with legal idents
     syntax_expanders.insert(@~" block",
-                           @ScopeMacros(false));
+                           @ScopeMacros(true));
     syntax_expanders.insert(@~"macro_rules",
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
@@ -170,6 +179,9 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     syntax_expanders.insert(@~"include",
                             builtin_normal_tt(
                                 ext::source_util::expand_include));
+    syntax_expanders.insert(@~"include_macros",
+                            builtin_normal_tt(
+                                ext::source_util::expand_include_macros));
     syntax_expanders.insert(@~"include_str",
                             builtin_normal_tt(
                                 ext::source_util::expand_include_str));

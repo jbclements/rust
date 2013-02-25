@@ -140,7 +140,7 @@ pub fn expand_item(extsbox: @mut SyntaxEnv,
       _ => false
     };
     let maybe_it = match it.node {
-      ast::item_mac(*) => expand_item_mac(*extsbox, cx, it, fld),
+      ast::item_mac(*) => expand_item_mac(extsbox, cx, it, fld),
       _ => Some(it)
     };
 
@@ -155,9 +155,34 @@ pub fn expand_item(extsbox: @mut SyntaxEnv,
     }
 }
 
+// this macro disables (one layer of) macro
+// scoping, to allow a block to add macro bindings
+// to its parent env
+macro_rules! without_macro_scoping(
+    ($extsexpr:expr,$exp:expr) =>
+    ({
+        // only evaluaate this once:
+        let exts = $extsexpr;
+        // capture the existing binding:
+        let existingBlockBinding =
+            match exts.find(&@~" block"){
+                Some(binding) => binding,
+                None => cx.bug("expected to find \" block\" binding")
+            };
+        // this prevents the block from limiting the macros' scope:
+        exts.insert(@~" block",@ScopeMacros(false));
+        let result = $exp;
+        // reset the block binding. Note that since the original
+        // one may have been inherited, this procedure may wind
+        // up introducing a block binding where one didn't exist
+        // before.
+        exts.insert(@~" block",existingBlockBinding);
+        result
+    }))
+    
 // Support for item-position macro invocations, exactly the same
 // logic as for expression-position macro invocations.
-pub fn expand_item_mac(exts: SyntaxEnv,
+pub fn expand_item_mac(+extsbox: @mut SyntaxEnv,
                        cx: ext_ctxt, &&it: @ast::item,
                        fld: ast_fold) -> Option<@ast::item> {
 
@@ -169,7 +194,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
     };
 
     let extname = cx.parse_sess().interner.get(pth.idents[0]);
-    let expanded = match exts.find(&extname) {
+    let expanded = match (*extsbox).find(&extname) {
         None => cx.span_fatal(pth.span,
                               fmt!("macro undefined: '%s!'", *extname)),
 
@@ -189,7 +214,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
             }));
             ((*expand).expander)(cx, it.span, tts)
         }
-        Some(@SE(ItemTT(ref expand))) => {
+        Some(@SE(IdentTT(ref expand))) => {
             if it.ident == parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects an ident argument",
@@ -216,7 +241,13 @@ pub fn expand_item_mac(exts: SyntaxEnv,
         MRAny(_, item_maker, _) =>
             option::chain(item_maker(), |i| {fld.fold_item(i)}),
         MRDef(ref mdef) => {
-            exts.insert(@/*bad*/ copy mdef.name, @SE((*mdef).ext));
+            extsbox.insert(@/*bad*/ copy mdef.name, @SE((*mdef).ext));
+            None
+        }
+        // This is a hack, to allow evaluating exprs for their effect
+        // on the macro environment.
+        MRMacroDefs(ref mdefs_expr) => {
+            without_macro_scoping!((*extsbox),fld.fold_expr(*mdefs_expr));
             None
         }
     };
@@ -224,6 +255,7 @@ pub fn expand_item_mac(exts: SyntaxEnv,
     return maybe_it;
 }
 
+// expand a stmt
 pub fn expand_stmt(extsbox: @mut SyntaxEnv, cx: ext_ctxt,
                    && s: stmt_, sp: span, fld: ast_fold,
                    orig: fn@(&&s: stmt_, span, ast_fold) -> (stmt_, span))
@@ -365,7 +397,6 @@ pub fn core_macros() -> ~str {
 
 // could cfg just be a borrowed pointer here?
 
-
 pub fn expand_crate(parse_sess: @mut parse::ParseSess,
                     cfg: ast::crate_cfg, c: @crate) -> @crate {
     // adding *another* layer of indirection here so that the block
@@ -399,7 +430,7 @@ pub fn expand_crate(parse_sess: @mut parse::ParseSess,
 
     // This is run for its side-effects on the expander env,
     // as it registers all the core macros as expanders.
-    f.fold_expr(cm);
+    without_macro_scoping!((*extsbox),f.fold_expr(cm));
 
     let res = @f.fold_crate(*c);
     return res;
@@ -421,9 +452,12 @@ mod test {
         expand_crate(sess,cfg,crate_ast);
     }
 
+    // these following tests are quite fragile, in that they don't test what
+    // *kind* of failure occurs.
+    
     // make sure that macros can leave scope
     #[should_fail]
-    #[test] fn macros_are_scoped_test () {
+    #[test] fn macros_cant_escape_fns_test () {
         let src = ~"fn bogus() {macro_rules! z (() => (3+4))}\
                     fn inty() -> int { z!() }";
         let sess = parse::new_parse_sess(None);
@@ -435,6 +469,55 @@ mod test {
         // should fail:
         expand_crate(sess,cfg,crate_ast);
     }
+
+
+    // make sure that macros can leave scope
+    #[should_fail]
+    #[test] fn macros_cant_escape_mods_test () {
+        let src = ~"mod foo {macro_rules! z (() => (3+4))}\
+                    fn inty() -> int { z!() }";
+        let sess = parse::new_parse_sess(None);
+        let cfg = ~[];
+        let crate_ast = parse::parse_crate_from_source_str(
+            ~"<test>",
+            @src,
+            cfg,sess);
+        // should fail:
+        expand_crate(sess,cfg,crate_ast);
+    }
+
+    // a temporary test... can't be made independent of the fs
+    #[test] fn try_new_include_macro (){
+        let src = ~"include_macros!(\"/tmp/mymacros.rs\")
+fn foo () {add1!(3);}";
+        let sess = parse::new_parse_sess(None);
+        let cfg = ~[];
+        let crate_ast = parse::parse_crate_from_source_str(
+            ~"<test>",
+            @src,
+            cfg,sess);
+        expand_crate(sess,cfg,crate_ast);
+        
+    }
+
+    // another temporary test...
+    #[should_fail]
+    #[test] fn ensure_macro_scoping_returns (){
+        // should fail because z isn't defined (anymore)
+        let src = ~"include_macros!(\"/tmp/mymacros.rs\")
+fn bar () {macro_rules! z (() => 34)
+fn foo () {z();}";
+        let sess = parse::new_parse_sess(None);
+        let cfg = ~[];
+        let crate_ast = parse::parse_crate_from_source_str(
+            ~"<test>",
+            @src,
+            cfg,sess);
+        expand_crate(sess,cfg,crate_ast);
+        
+    }
+
+    
 
 }
 
