@@ -179,7 +179,7 @@ macro_rules! without_macro_scoping(
         exts.insert(@~" block",existingBlockBinding);
         result
     }))
-    
+
 // Support for item-position macro invocations, exactly the same
 // logic as for expression-position macro invocations.
 pub fn expand_item_mac(+extsbox: @mut SyntaxEnv,
@@ -454,7 +454,9 @@ mod test {
 
     // these following tests are quite fragile, in that they don't test what
     // *kind* of failure occurs.
-    
+
+    /* won't pass until macro scope is enabled
+
     // make sure that macros can leave scope
     #[should_fail]
     #[test] fn macros_cant_escape_fns_test () {
@@ -470,7 +472,6 @@ mod test {
         expand_crate(sess,cfg,crate_ast);
     }
 
-
     // make sure that macros can leave scope
     #[should_fail]
     #[test] fn macros_cant_escape_mods_test () {
@@ -485,6 +486,9 @@ mod test {
         // should fail:
         expand_crate(sess,cfg,crate_ast);
     }
+*/
+    /* Useful for development, but depend on the presence
+     * of certain files in /tmp
 
     // a temporary test... can't be made independent of the fs
     #[test] fn try_new_include_macro (){
@@ -497,7 +501,7 @@ fn foo () {add1!(3);}";
             @src,
             cfg,sess);
         expand_crate(sess,cfg,crate_ast);
-        
+
     }
 
     // another temporary test...
@@ -514,10 +518,8 @@ fn foo () {z();}";
             @src,
             cfg,sess);
         expand_crate(sess,cfg,crate_ast);
-        
-    }
 
-    
+    }*/
 
 }
 

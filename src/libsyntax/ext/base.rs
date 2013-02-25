@@ -123,7 +123,10 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     let mut syntax_expanders = LinearMap::new();
     // NB identifier starts with space, and can't conflict with legal idents
     syntax_expanders.insert(@~" block",
-                           @ScopeMacros(true));
+                            // running in stealth mode...
+                            // @ScopeMacros(true)
+                            @ScopeMacros(false)
+                           );
     syntax_expanders.insert(@~"macro_rules",
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
