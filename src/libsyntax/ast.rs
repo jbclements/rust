@@ -21,29 +21,91 @@ use std::serialize::{Encodable, Decodable, Encoder, Decoder};
 
 use opt_vec::OptVec;
 
-/* can't import macros yet, so this is copied from token.rs. See its comment
- * there. */
-macro_rules! interner_key (
-    () => (cast::transmute::<(uint, uint),
-            &fn(+v: @@::parse::token::ident_interner)>(
-        (-3 as uint, 0u)))
-)
-
 // an identifier contains an index into the interner
 // table and a SyntaxContext to track renaming and
 // macro expansion per Flatt et al., "Macros
 // That Work Together"
 #[deriving(Eq)]
-pub struct ident { repr: Name }
+pub struct ident { repr: uint }
 
 // a SyntaxContext represents a chain of macro-expandings
 // and renamings. Each macro expansion corresponds to
 // a fresh uint
 #[deriving(Eq)]
+#[auto_encode]
+#[auto_decode]
 pub enum SyntaxContext {
     MT,
-    Mark (Mrk,~SyntaxContext),
-    Rename (~ident,Name,~SyntaxContext)
+    Mark (Mrk,@SyntaxContext),
+    // flattening the name and syntaxcontext into the rename...
+    // HIDDEN INVARIANTS:
+    // 1) the first name in a Rename node
+    // can only be a programmer-supplied name.
+    // 2) Every Rename node with a given Name in the
+    // "to" slot must have the same name and context
+    // in the "from" slot. In essence, they're all
+    // pointers to a single "rename" event node.
+    Rename (Name,@SyntaxContext,Name,@SyntaxContext)
+}
+
+// resolve a syntax object to a name, per MTWT.
+pub fn resolve (name: Name, ctxt: &SyntaxContext) -> Name {
+    match *ctxt {
+        MT => name,
+        // ignore marks here:
+        Mark(_,subctxt) => resolve (name, subctxt),
+        // do the rename if necessary:
+        Rename(frompath,fromctxt,toname,subctxt) => {
+            // this could be cached or computed eagerly:
+            let resolvedfrom = resolve(frompath,fromctxt);
+            let resolvedthis = resolve(name,subctxt);
+            if ((resolvedthis == resolvedfrom)
+                && (marksof (*fromctxt,resolvedthis)
+                    == marksof (*subctxt,resolvedthis))) {
+                toname
+            } else {
+                resolvedthis
+            }
+        }
+    }
+}
+
+// compute the marks associated with a syntax context.
+// it's not clear to me whether it's better to use a [] mutable
+// vector or a cons-list for this.
+pub fn marksof(ctxt: SyntaxContext, stopname: Name) -> ~[Mrk] {
+    let mut result = ~[];
+    let mut loopvar = ctxt;
+    loop {
+        match loopvar  {
+            MT => {return result;},
+            Mark(mark,tl) => {
+                xorPush(&mut result,mark);
+                loopvar = *tl;
+            },
+            Rename(_,_,name,tl) => {
+                // see MTWT for details on the purpose of the stopname.
+                // short version: it prevents duplication of effort.
+                if (name == stopname) {
+                    return result;
+                } else {
+                    loopvar = *tl;
+                }
+            }
+        }
+    }
+}
+
+
+
+// push a name... unless it matches the one on top, in which
+// case pop and discard (so two of the same marks cancel)
+pub fn xorPush(marks: &mut ~[Mrk], mark: Mrk) {
+    if ((marks.len() > 0) && (marks.last() == mark)) {
+        marks.pop();
+    } else {
+        marks.push(mark);
+    }
 }
 
 /*
@@ -55,8 +117,9 @@ pub fn free_ident_eq (a : ident, b: ident) -> bool{
     a.repr == b.repr
 }
 */
-// a name represents a string, interned
-type Name = uint;
+// a name represents a sequence of identifiers.
+// this could easily be interned.
+pub type Name = @~[ident];
 // a mark represents a unique id associated
 // with a macro expansion
 type Mrk = uint;
@@ -112,12 +175,13 @@ pub struct Lifetime {
 #[auto_encode]
 #[auto_decode]
 #[deriving(Eq)]
-pub struct path {
+pub struct Path {
     span: span,
     global: bool,
-    idents: ~[ident],
+    idents: Name,
     rp: Option<@Lifetime>,
     types: ~[@Ty],
+    ctxt: @SyntaxContext,
 }
 
 pub type crate_num = int;
@@ -299,10 +363,10 @@ pub enum pat_ {
     // which it is. The resolver determines this, and
     // records this pattern's node_id in an auxiliary
     // set (of "pat_idents that refer to nullary enums")
-    pat_ident(binding_mode, @path, Option<@pat>),
-    pat_enum(@path, Option<~[@pat]>), /* "none" means a * pattern where
+    pat_ident(binding_mode, @Path, Option<@pat>),
+    pat_enum(@Path, Option<~[@pat]>), /* "none" means a * pattern where
                                        * we don't bind the fields to names */
-    pat_struct(@path, ~[field_pat], bool),
+    pat_struct(@Path, ~[field_pat], bool),
     pat_tup(~[@pat]),
     pat_box(@pat),
     pat_uniq(@pat),
@@ -593,7 +657,7 @@ pub enum expr_ {
     expr_assign_op(binop, @expr, @expr),
     expr_field(@expr, ident, ~[@Ty]),
     expr_index(@expr, @expr),
-    expr_path(@path),
+    expr_path(@Path),
     expr_addr_of(mutability, @expr),
     expr_break(Option<ident>),
     expr_again(Option<ident>),
@@ -608,7 +672,7 @@ pub enum expr_ {
     expr_mac(mac),
 
     // A struct literal expression.
-    expr_struct(@path, ~[field], Option<@expr>),
+    expr_struct(@Path, ~[field], Option<@expr>),
 
     // A vector literal constructed from one repeated element.
     expr_repeat(@expr /* element */, @expr /* count */, mutability),
@@ -726,7 +790,7 @@ pub type mac = spanned<mac_>;
 #[auto_decode]
 #[deriving(Eq)]
 pub enum mac_ {
-    mac_invoc_tt(@path,~[token_tree]),   // new macro-invocation
+    mac_invoc_tt(@Path,~[token_tree]),   // new macro-invocation
 }
 
 pub type lit = spanned<lit_>;
@@ -921,7 +985,7 @@ pub enum ty_ {
     ty_closure(@TyClosure),
     ty_bare_fn(@TyBareFn),
     ty_tup(~[@Ty]),
-    ty_path(@path, node_id),
+    ty_path(@Path, node_id),
     ty_mac(mac),
     // ty_infer means the type should be inferred instead of it having been
     // specified. This should only appear at the "top level" of a type and not
@@ -1136,13 +1200,13 @@ pub enum view_path_ {
     // or just
     //
     // foo::bar::baz  (with 'baz =' implicitly on the left)
-    view_path_simple(ident, @path, namespace, node_id),
+    view_path_simple(ident, @Path, namespace, node_id),
 
     // foo::bar::*
-    view_path_glob(@path, node_id),
+    view_path_glob(@Path, node_id),
 
     // foo::bar::{a,b,c}
-    view_path_list(@path, ~[path_list_ident], node_id)
+    view_path_list(@Path, ~[path_list_ident], node_id)
 }
 
 #[auto_encode]
@@ -1195,7 +1259,7 @@ pub struct attribute_ {
 #[auto_decode]
 #[deriving(Eq)]
 pub struct trait_ref {
-    path: @path,
+    path: @Path,
     ref_id: node_id,
 }
 
@@ -1330,15 +1394,81 @@ pub enum inlined_item {
 
 #[cfg(test)]
 mod test {
-    //are asts encodable?
-
-    // it looks like this *will* be a compiler bug, after
-    // I get deriving_eq for crates into incoming :)
-    /*
+    use core::option::{None, Option, Some};
+    use core::uint;
     use std;
     use codemap::*;
     use super::*;
+    use util::testing::check_equal;
+    use super::Name;
 
+
+    #[test] fn xorpush_test () {
+        let mut s = ~[];
+        xorPush(&mut s,14);
+        check_equal(s,~[14]);
+        xorPush(&mut s,14);
+        check_equal(s,~[]);
+        xorPush(&mut s,14);
+        check_equal(s,~[14]);
+        xorPush(&mut s,15);
+        check_equal(s,~[14,15]);
+        xorPush (&mut s,16);
+        check_equal (s,~[14,15,16]);
+        xorPush (&mut s,16);
+        check_equal (s,~[14,15]);
+        xorPush (&mut s,15);
+        check_equal (s,~[14]);
+    }
+
+    // convert a list of uints to a Name
+    // (ignores the interner completely)
+    fn uints_to_name (uints: &~[uint]) -> Name {
+        @uints.map(|u|{ ident {repr:*u} })
+    }
+
+    // convert a single uint to a one-element Name
+    // (ignores the interner completely)
+    fn uint_to_name (u: uint) -> Name { uints_to_name(&~[u]) }
+
+    #[test] fn test_marksof () {
+        let stopname = uints_to_name(&~[12,14,78]);
+        let name1 = uints_to_name(&~[4,9,7]);
+        check_equal(marksof (MT,stopname),~[]);
+        check_equal (marksof (Mark (4,@Mark(98,@MT)),stopname),~[4,98]);
+        // does xoring work?
+        check_equal (marksof (Mark (5, @Mark (5, @Mark (16,@MT))),stopname),
+                     ~[16]);
+        // does nested xoring work?
+        check_equal (marksof (Mark (5,
+                                    @Mark (10,
+                                           @Mark (10,
+                                                  @Mark (5,
+                                                         @Mark (16,@MT))))),
+                              stopname),
+                     ~[16]);
+        // stop has no effect on marks
+        check_equal (marksof (Mark (9, @Mark (14, @Mark (12, @MT))),stopname),
+                     ~[9,14,12]);
+        // rename where stop doesn't match:
+        check_equal (marksof (Mark (9, @Rename
+                                    (name1,
+                                     @Mark (4, @MT),
+                                     uints_to_name(&~[100,101,102]),
+                                     @Mark (14, @MT))),
+                              stopname),
+                     ~[9,14]);
+        // rename where stop does match
+        ;
+        check_equal (marksof (Mark(9, @Rename (name1,
+                                               @Mark (4, @MT),
+                                               stopname,
+                                               @Mark (14, @MT))),
+                              stopname),
+                     ~[9]);
+    }
+
+    // are ASTs encodable?
     #[test] fn check_asts_encodable() {
         let bogus_span = span {lo:BytePos(10),
                                hi:BytePos(20),
@@ -1352,9 +1482,61 @@ mod test {
             },
             span: bogus_span};
         // doesn't matter which encoder we use....
-        let _f = (_e as std::serialize::Encodable::<std::json::Encoder>);
+        let _f = (@_e as std::serialize::Encodable::<std::json::Encoder>);
     }
-    */
+
+    // utility function for adding a bunch of marks to a syntax context for
+    // test construction
+    fn markchain(marks: ~[uint],terminator: @SyntaxContext)
+        -> @SyntaxContext {
+        let mut result = terminator;
+        for uint::range(0,marks.len()) |i| {
+            result = @Mark(marks[marks.len()-i-1],result);
+        }
+        return result;
+    }
+
+    #[test] fn markchain_test () {
+        check_equal(markchain(~[43,44,45],@MT),
+                    @Mark(43,@Mark(44,@Mark(45,@MT))));
+    }
+
+    #[test] fn resolve_tests () {
+        let a = uint_to_name (40);
+        let a10 = uint_to_name(50);
+        let a11 = uint_to_name(51);
+        // - ctxt is MT
+        check_equal(resolve(a,&MT),a);
+        // - simple ignored marks
+        check_equal(resolve(a,&Mark(1,@Mark(2,@Mark(3,@MT)))),a);
+        // - orthogonal rename where names don't match
+        check_equal(resolve(a,&Rename(a10,@MT,a11,@Mark(12,@MT))),a);
+        // - rename where names do match, but marks don't
+        check_equal(resolve(a,&Rename(a,@Mark(1,@MT),a10,
+                                       @Mark(1,@Mark(2,@MT)))),
+                    a);
+        // - rename where names and marks match
+        check_equal(resolve(a,&Rename(a,@Mark(1,@Mark(2,@MT)),a10,
+                                       @Mark(1,@Mark(2,@MT)))),
+                    a10);
+        // - two renames of the same var.. can only happen if you use
+        // local-expand to prevent the inner binding from being renamed
+        // during the rename-pass caused by the first:
+        check_equal(resolve(a,&Rename(a, @MT,
+                                       a10, @Rename(a,@MT,
+                                                    a11,@MT))),
+                    a11);
+        // the simplest double-rename:
+        let a_to_a10 = Rename(a,@MT,a10,@MT);
+        let a10_to_a11 = Rename(a,@a_to_a10,a11,@a_to_a10);
+        check_equal(resolve(a,&a10_to_a11),a11);
+        // mark on the outside doesn't stop rename:
+        check_equal(resolve(a,&Mark(9,@a10_to_a11)),a11);
+        // but mark on the inside does:
+        let a10_to_a11_b = Rename(a,@a_to_a10,a11,@Mark(9,@a_to_a10));
+        check_equal(resolve(a,&a10_to_a11_b),a10);
+    }
+
 }
 //
 // Local Variables:

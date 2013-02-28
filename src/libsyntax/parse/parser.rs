@@ -38,10 +38,10 @@ use ast::{item_mac, item_mod, item_struct, item_trait, item_ty, lit, lit_};
 use ast::{lit_bool, lit_float, lit_float_unsuffixed, lit_int};
 use ast::{lit_int_unsuffixed, lit_nil, lit_str, lit_uint, local, m_const};
 use ast::{m_imm, m_mutbl, mac_, mac_invoc_tt, matcher, match_nonterminal};
-use ast::{match_seq, match_tok, method, mode, module_ns, mt, mul, mutability};
-use ast::{named_field, neg, node_id, noreturn, not, pat, pat_box, pat_enum};
-use ast::{pat_ident, pat_lit, pat_range, pat_region, pat_struct};
-use ast::{pat_tup, pat_uniq, pat_wild, path, private};
+use ast::{match_seq, match_tok, method, mode, module_ns, mt, MT, mul};
+use ast::{mutability, named_field, neg, node_id, noreturn, not, pat, pat_box};
+use ast::{pat_enum, pat_ident, pat_lit, pat_range, pat_region, pat_struct};
+use ast::{pat_tup, pat_uniq, pat_wild, Path, private};
 use ast::{rem, required};
 use ast::{ret_style, return_val, self_ty, shl, shr, stmt, stmt_decl};
 use ast::{stmt_expr, stmt_semi, stmt_mac, struct_def, struct_field};
@@ -886,7 +886,7 @@ pub impl Parser {
 
     // parse a path that doesn't have type parameters attached
     fn parse_path_without_tps(&self)
-        -> @ast::path {
+        -> @ast::Path {
         maybe_whole!(self, nt_path);
         let lo = self.span.lo;
         let global = self.eat(&token::MOD_SEP);
@@ -906,17 +906,18 @@ pub impl Parser {
                 break;
             }
         }
-        @ast::path { span: mk_sp(lo, self.last_span.hi),
-                     global: global,
-                     idents: ids,
-                     rp: None,
-                     types: ~[] }
+        @ast::Path { span: mk_sp(lo, self.last_span.hi),
+               global: global,
+               idents: @ids,
+               rp: None,
+               types: ~[],
+               ctxt: @ast::MT}
     }
 
     // parse a path optionally with type parameters. If 'colons'
     // is true, then type parameters must be preceded by colons,
     // as in a::t::<t1,t2>
-    fn parse_path_with_tps(&self, colons: bool) -> @ast::path {
+    fn parse_path_with_tps(&self, colons: bool) -> @ast::Path {
         debug!("parse_path_with_tps(colons=%b)", colons);
 
         maybe_whole!(self, nt_path);
@@ -971,7 +972,7 @@ pub impl Parser {
             }
         };
 
-        @ast::path { span: mk_sp(lo, hi),
+        @ast::Path { span: mk_sp(lo, hi),
                      rp: rp,
                      types: tps,
                      .. copy *path }
@@ -2356,7 +2357,7 @@ pub impl Parser {
                                 pat = pat_enum(enum_path, None);
                             }
                             else if vec::is_empty(args) &&
-                                vec::len(enum_path.idents) == 1u {
+                                (enum_path.idents.len()) == 1u {
                                 pat = pat_ident(binding_mode,
                                                 enum_path,
                                                 None);
@@ -3125,7 +3126,7 @@ pub impl Parser {
     //    impl<T> Foo { ... }
     //    impl<T> ToStr for ~[T] { ... }
     fn parse_item_impl(&self, visibility: ast::visibility) -> item_info {
-        fn wrap_path(p: &Parser, pt: @path) -> @Ty {
+        fn wrap_path(p: &Parser, pt: @ast::Path) -> @Ty {
             @Ty {
                 id: p.get_id(),
                 node: ty_path(pt, p.get_id()),
@@ -4209,11 +4210,12 @@ pub impl Parser {
                 let id = self.parse_ident();
                 path.push(id);
             }
-            let path = @ast::path { span: mk_sp(lo, self.span.hi),
-                                    global: false,
-                                    idents: path,
-                                    rp: None,
-                                    types: ~[] };
+              let path = @ast::Path { span: mk_sp(lo, self.span.hi),
+                                     global: false,
+                                     idents: @path,
+                                     rp: None,
+                                     types: ~[],
+                                     ctxt: @ast::MT};
             return @spanned(lo, self.span.hi,
                          view_path_simple(first_ident, path, namespace,
                                           self.get_id()));
@@ -4238,11 +4240,12 @@ pub impl Parser {
                         seq_sep_trailing_allowed(token::COMMA),
                         |p| p.parse_path_list_ident()
                     );
-                    let path = @ast::path { span: mk_sp(lo, self.span.hi),
+                    let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                             global: false,
-                                            idents: path,
+                                            idents: @path,
                                             rp: None,
-                                            types: ~[] };
+                                            types: ~[],
+                                            ctxt: @ast::MT};
                     return @spanned(lo, self.span.hi,
                                  view_path_list(path, idents, self.get_id()));
                   }
@@ -4250,13 +4253,14 @@ pub impl Parser {
                   // foo::bar::*
                   token::BINOP(token::STAR) => {
                     self.bump();
-                    let path = @ast::path { span: mk_sp(lo, self.span.hi),
-                                            global: false,
-                                            idents: path,
-                                            rp: None,
-                                            types: ~[] };
+                    let path = @ast::Path { span: mk_sp(lo, self.span.hi),
+                                           global: false,
+                                           idents: @path,
+                                           rp: None,
+                                           types: ~[],
+                                           ctxt: @ast::MT};
                     return @spanned(lo, self.span.hi,
-                                 view_path_glob(path, self.get_id()));
+                                    view_path_glob(path, self.get_id()));
                   }
 
                   _ => break
@@ -4266,11 +4270,12 @@ pub impl Parser {
           _ => ()
         }
         let last = path[vec::len(path) - 1u];
-        let path = @ast::path { span: mk_sp(lo, self.span.hi),
+        let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                 global: false,
-                                idents: path,
+                                idents: @path,
                                 rp: None,
-                                types: ~[] };
+                                types: ~[],
+                                ctxt: @ast::MT};
         return @spanned(lo, self.span.hi,
                      view_path_simple(last, path, namespace, self.get_id()));
     }

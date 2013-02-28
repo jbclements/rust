@@ -47,7 +47,7 @@ use syntax::ast::{item_const, item_enum, item_fn, item_foreign_mod};
 use syntax::ast::{item_impl, item_mac, item_mod, item_trait, item_ty, le};
 use syntax::ast::{local, local_crate, lt, method, mode, module_ns, mul};
 use syntax::ast::{named_field, ne, neg, node_id, pat, pat_enum, pat_ident};
-use syntax::ast::{path, pat_box, pat_lit, pat_range, pat_struct};
+use syntax::ast::{Path, pat_box, pat_lit, pat_range, pat_struct};
 use syntax::ast::{pat_tup, pat_uniq, pat_wild, prim_ty, private, provided};
 use syntax::ast::{public, required, rem, self_ty_, shl, shr, stmt_decl};
 use syntax::ast::{struct_dtor, struct_field, struct_variant_kind, sty_by_ref};
@@ -4141,14 +4141,15 @@ pub impl Resolver {
                         // Write the result into the def map.
                         debug!("(resolving type) writing resolution for `%s` \
                                 (id %d)",
-                               self.idents_to_str(path.idents),
+                               self.idents_to_str(*(path.idents)),
                                path_id);
                         self.record_def(path_id, def);
                     }
                     None => {
                         self.session.span_err
-                            (ty.span, fmt!("use of undeclared type name `%s`",
-                                           self.idents_to_str(path.idents)));
+                            (ty.span, fmt!(
+                                "use of undeclared type name `%s`",
+                                self.idents_to_str(*(path.idents))));
                     }
                 }
             }
@@ -4393,7 +4394,7 @@ pub impl Resolver {
                             self.session.span_err(
                                 path.span,
                                 fmt!("`%s` does not name a structure",
-                                     self.idents_to_str(path.idents)));
+                                     self.idents_to_str(*(path.idents))));
                         }
                     }
                 }
@@ -4446,7 +4447,7 @@ pub impl Resolver {
     /// If `check_ribs` is true, checks the local definitions first; i.e.
     /// doesn't skip straight to the containing module.
     fn resolve_path(@mut self,
-                    path: @path,
+                    path: @Path,
                     namespace: Namespace,
                     check_ribs: bool,
                     visitor: ResolveVisitor)
@@ -4560,7 +4561,7 @@ pub impl Resolver {
         }
     }
 
-    fn intern_module_part_of_path(@mut self, path: @path) -> ~[ident] {
+    fn intern_module_part_of_path(@mut self, path: @Path) -> ~[ident] {
         let mut module_path_idents = ~[];
         for path.idents.eachi |index, ident| {
             if index == path.idents.len() - 1 {
@@ -4574,7 +4575,7 @@ pub impl Resolver {
     }
 
     fn resolve_module_relative_path(@mut self,
-                                    path: @path,
+                                    path: @Path,
                                     +xray: XrayFlag,
                                     namespace: Namespace)
                                  -> Option<def> {
@@ -4620,7 +4621,7 @@ pub impl Resolver {
     /// Invariant: This must be called only during main resolution, not during
     /// import resolution.
     fn resolve_crate_relative_path(@mut self,
-                                   path: @path,
+                                   path: @Path,
                                    +xray: XrayFlag,
                                    namespace: Namespace)
                                 -> Option<def> {
@@ -4822,12 +4823,12 @@ pub impl Resolver {
                     Some(def) => {
                         // Write the result into the def map.
                         debug!("(resolving expr) resolved `%s`",
-                               self.idents_to_str(path.idents));
+                               self.idents_to_str(*path.idents));
                         self.record_def(expr.id, def);
                     }
                     None => {
                         let wrong_name = self.idents_to_str(
-                            path.idents);
+                            *path.idents);
                         if self.name_exists_in_scope_struct(wrong_name) {
                             self.session.span_err(expr.span,
                                         fmt!("unresolved name: `%s`. \
@@ -4882,7 +4883,7 @@ pub impl Resolver {
                         self.session.span_err(
                             path.span,
                             fmt!("`%s` does not name a structure",
-                                 self.idents_to_str(path.idents)));
+                                 self.idents_to_str(*path.idents)));
                     }
                 }
 

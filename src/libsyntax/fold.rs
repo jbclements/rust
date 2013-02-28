@@ -37,7 +37,7 @@ pub trait ast_fold {
     fn fold_foreign_mod(@self, &foreign_mod) -> foreign_mod;
     fn fold_variant(@self, &variant) -> variant;
     fn fold_ident(@self, ident) -> ident;
-    fn fold_path(@self, @path) -> @path;
+    fn fold_path(@self, @Path) -> @Path;
     fn fold_local(@self, @local) -> @local;
     fn map_exprs(@self, @fn(@expr) -> @expr, &[@expr]) -> ~[@expr];
     fn new_id(@self, node_id) -> node_id;
@@ -66,7 +66,7 @@ pub struct AstFoldFns {
     fold_foreign_mod: @fn(&foreign_mod, @ast_fold) -> foreign_mod,
     fold_variant: @fn(&variant_, span, @ast_fold) -> (variant_, span),
     fold_ident: @fn(ident, @ast_fold) -> ident,
-    fold_path: @fn(@path, @ast_fold) -> path,
+    fold_path: @fn(@Path, @ast_fold) -> path,
     fold_local: @fn(&local_, span, @ast_fold) -> (local_, span),
     map_exprs: @fn(@fn(@expr) -> @expr, &[@expr]) -> ~[@expr],
     new_id: @fn(node_id) -> node_id,
@@ -716,13 +716,14 @@ fn noop_fold_ident(i: ident, _fld: @ast_fold) -> ident {
     /* FIXME (#2543) */ copy i
 }
 
-fn noop_fold_path(p: @path, fld: @ast_fold) -> path {
-    ast::path {
+fn noop_fold_path(p: @Path, fld: @ast_fold) -> Path {
+    ast::Path {
         span: fld.new_span(p.span),
         global: p.global,
-        idents: p.idents.map(|x| fld.fold_ident(*x)),
+        idents: @p.idents.map(|x| fld.fold_ident(*x)),
         rp: p.rp,
         types: p.types.map(|x| fld.fold_ty(*x)),
+        ctxt: p.ctxt,
     }
 }
 
@@ -865,7 +866,7 @@ impl ast_fold for AstFoldFns {
     fn fold_ident(@self, x: ident) -> ident {
         (self.fold_ident)(x, self as @ast_fold)
     }
-    fn fold_path(@self, x: @path) -> @path {
+    fn fold_path(@self, x: @Path) -> @Path {
         @(self.fold_path)(x, self as @ast_fold)
     }
     fn fold_local(@self, x: @local) -> @local {

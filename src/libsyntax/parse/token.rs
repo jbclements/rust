@@ -113,7 +113,7 @@ pub enum nonterminal {
     nt_expr(@ast::expr),
     nt_ty(  @ast::Ty),
     nt_ident(ast::ident, bool),
-    nt_path(@ast::path),
+    nt_path(@ast::Path),
     nt_tt(  @ast::token_tree), //needs @ed to break a circularity
     nt_matchers(~[ast::matcher])
 }
@@ -373,16 +373,6 @@ pub impl ident_interner {
         self.interner.len()
     }
 }
-
-/* Key for thread-local data for sneaking interner information to the
- * encoder/decoder. It sounds like a hack because it is one.
- * Bonus ultra-hack: functions as keys don't work across crates,
- * so we have to use a unique number. See taskgroup_key! in task.rs
- * for another case of this. */
-macro_rules! interner_key (
-    () => (cast::transmute::<(uint, uint), &fn(+v: @@token::ident_interner)>(
-        (-3 as uint, 0u)))
-)
 
 pub fn mk_ident_interner() -> @ident_interner {
     unsafe {

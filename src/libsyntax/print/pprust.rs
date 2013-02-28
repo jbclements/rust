@@ -176,7 +176,7 @@ pub fn generics_to_str(generics: &ast::Generics,
     to_str(generics, print_generics, intr)
 }
 
-pub fn path_to_str(&&p: @ast::path, intr: @ident_interner) -> ~str {
+pub fn path_to_str(&&p: @ast::Path, intr: @ident_interner) -> ~str {
     to_str(p, |a,b| print_path(a, b, false), intr)
 }
 
@@ -1493,7 +1493,7 @@ pub fn print_for_decl(s: @ps, loc: @ast::local, coll: @ast::expr) {
     print_expr(s, coll);
 }
 
-pub fn print_path(s: @ps, &&path: @ast::path, colons_before_params: bool) {
+pub fn print_path(s: @ps, &&path: @ast::Path, colons_before_params: bool) {
     maybe_print_comment(s, path.span.lo);
     if path.global { word(s.s, ~"::"); }
     let mut first = true;
@@ -1823,7 +1823,7 @@ pub fn print_view_path(s: @ps, &&vp: @ast::view_path) {
         if namespace == ast::module_ns {
             word_space(s, ~"mod");
         }
-        if path.idents[vec::len(path.idents)-1u] != ident {
+        if path.idents[path.idents.len()-1u] != ident {
             print_ident(s, ident);
             space(s.s);
             word_space(s, ~"=");
