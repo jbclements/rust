@@ -12,6 +12,7 @@ use core::prelude::*;
 
 use ast;
 use ast::{token_tree, tt_delim, tt_tok, tt_seq, tt_nonterminal,ident};
+use ast::{tt_path};
 use codemap::{span, dummy_sp};
 use diagnostic::span_handler;
 use ext::tt::macro_parser::{named_match, matched_seq, matched_nonterminal};
@@ -65,7 +66,7 @@ pub fn new_tt_reader(sp_diag: @span_handler,
             sep: None,
             up: option::None
         },
-        interpolations: match interp { /* just a convienience */
+        interpolations: match interp { /* just a convenience */
             None => std::oldmap::HashMap(),
             Some(x) => x
         },
@@ -160,7 +161,8 @@ fn lockstep_iter_size(t: token_tree, r: &mut TtReader) -> lis {
       tt_nonterminal(_, name) => match *lookup_cur_matched(r, name) {
         matched_nonterminal(_) => lis_unconstrained,
         matched_seq(ref ads, _) => lis_constraint(ads.len(), name)
-      }
+      },
+      tt_path(_,_,_) => {fail!(~"unimplemented")}
     }
 }
 
@@ -294,7 +296,8 @@ pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
                          *r.interner.get(ident)));
               }
             }
-          }
+          },
+          tt_path(*) => {fail!(~"unimplemented")}
         }
     }
 

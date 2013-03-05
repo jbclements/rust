@@ -747,6 +747,10 @@ pub fn print_tt(s: @ps, tt: ast::token_tree) {
         word(s.s, ~"$");
         print_ident(s, name);
       }
+      ast::tt_path(_,_,_) => {
+          // NOTE: unimplemented!
+          word(s.s,~"<PATH>");
+      }
     }
 }
 

@@ -134,6 +134,8 @@ pub impl Parser {
         }
     }
 
+    // return true when this token represents the given string, and is not
+    // followed immediately by :: .
     fn token_is_word(&self, word: &~str, tok: &token::Token) -> bool {
         match *tok {
             token::IDENT(sid, false) => { *self.id_to_str(sid) == *word }

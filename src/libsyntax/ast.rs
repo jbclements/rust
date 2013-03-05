@@ -100,12 +100,18 @@ pub fn marksof(ctxt: SyntaxContext, stopname: Name) -> ~[Mrk] {
 
 // push a name... unless it matches the one on top, in which
 // case pop and discard (so two of the same marks cancel)
-pub fn xorPush(marks: &mut ~[Mrk], mark: Mrk) {
-    if ((marks.len() > 0) && (marks.last() == mark)) {
+pub fn xorPush(marks: &mut ~[uint], mark: uint) {
+    if ((marks.len() > 0) && (getLast(marks) == mark)) {
         marks.pop();
     } else {
         marks.push(mark);
     }
+}
+
+// get the last element of a mutable array.
+// FIXME #4903: , must be a separate procedure for now.
+pub fn getLast(arr: &~[Mrk]) -> uint {
+    *arr.last()
 }
 
 /*
@@ -706,6 +712,9 @@ pub enum token_tree {
     // a delimited sequence (the delimiters appear as the first
     // and last elements of the vector)
     tt_delim(~[token_tree]),
+    // a path. the boolean indicates whether the path begins with '::'
+    tt_path(span,~[ident],bool),
+
     // These only make sense for right-hand-sides of MBE macros:
 
     // a kleene-style repetition sequence with a span, a tt_forest,

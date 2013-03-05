@@ -497,6 +497,10 @@ fn mk_tt(cx: @ext_ctxt, sp: span, tt: &ast::token_tree)
 
             ~[build::mk_stmt(cx, sp, e_push)]
         }
+        ast::tt_path(_,_,_) => {
+            // NOTE: unimplemented!
+            fail!(~"unimplemented!");
+        }
     }
 }
 

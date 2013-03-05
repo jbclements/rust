@@ -329,7 +329,10 @@ mod test {
     use std::serialize::Encodable;
     use std;
     use core::io;
+    use core::option::Option;
+    use core::option::Some;
     use core::option::None;
+    use codemap::dummy_sp;
     use ast;
 
     #[test] fn to_json_str<E : Encodable<std::json::Encoder>>(val: @E) -> ~str {
@@ -346,12 +349,32 @@ mod test {
             new_parse_sess(None))
     }
 
-    fn string_to_tt_to_crate (source_str : @~str) -> @ast::crate {
-        let tts = parse_tts_from_source_str(
+    fn string_to_item (source_str : @~str) -> @ast::item {
+        match parse_item_from_source_str(
             ~"bogofile",
-           source_str,
-           ~[],
-           new_parse_sess(None));
+            source_str, ~[], ~[],
+            new_parse_sess(None)) {
+            Some (s) => s,
+            None => {fail!(~"expected successful item parse, got None");}
+        }
+    }
+    
+    fn string_to_tts (source_str : @~str) -> ~[ast::token_tree] {
+        parse_tts_from_source_str(
+            ~"bogofile",
+            source_str,
+            ~[],
+            new_parse_sess(None))
+    }
+
+    #[test] fn tts_1 () {
+        let tts = string_to_tts (@~"::ab:: cd");
+        check_equal (tts,
+                    ~[ast::tt_delim(~[ast::tt_tok(dummy_sp(),token::LPAREN)])]);
+    }
+
+    fn string_to_tt_to_crate (source_str : @~str) -> @ast::crate {
+        let tts = string_to_tts(source_str);
         new_parser_from_tts(new_parse_sess(None),~[],tts)
             .parse_crate_mod(~[])
     }

@@ -81,6 +81,10 @@ macro_rules! interner_key (
 )
 
 
+#[cfg(test)]
+mod test {
+    use super::*;
+
 #[test]
 #[should_fail]
 pub fn i1 () {
@@ -120,4 +124,5 @@ pub fn i3 () {
     assert_eq!(i.get(1), @~"Bob");
     assert_eq!(i.get(2), @~"Carol");
     assert_eq!(i.intern(@~"Bob"), 1);
+}
 }

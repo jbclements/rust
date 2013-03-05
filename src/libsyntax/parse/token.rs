@@ -99,6 +99,10 @@ pub enum Token {
 
     DOC_COMMENT(ast::ident),
     EOF,
+
+    // putting PATH in. For now, it's coexisting with IDENT
+    // the bool indicates whether it starts with ::.
+    PATH(~[ast::ident],bool)
 }
 
 #[auto_encode]
@@ -199,6 +203,10 @@ pub fn to_str(in: @ident_interner, t: &Token) -> ~str {
 
       /* Name components */
       IDENT(s, _) => copy *in.get(s),
+      PATH(ids,is_global) => {
+          (if is_global {~"::"} else {~""})
+          + str::connect(ids.map(|id|*in.get(*id)),~"::")
+      }
       LIFETIME(s) => fmt!("'%s", *in.get(s)),
       UNDERSCORE => ~"_",
 
@@ -374,6 +382,7 @@ pub impl ident_interner {
     }
 }
 
+// return a fresh interner, preloaded with special identifiers.
 pub fn mk_ident_interner() -> @ident_interner {
     unsafe {
         match task::local_data::local_data_get(interner_key!()) {
@@ -512,6 +521,24 @@ pub fn reserved_keyword_table() -> HashMap<~str, ()> {
     words
 }
 
+
+
+#[cfg(test)]
+mod test{
+    use super::*;
+    use util::testing::check_equal;
+    use ast;
+    
+    #[test] fn t1 () {
+        let i = mk_ident_interner();
+        check_equal(to_str(i,&PATH(~[ast::ident{repr:10},ast::ident{repr:11}],
+                                   false)),
+                    ~"item::block");
+        check_equal(to_str(i,&PATH(~[ast::ident{repr:11},ast::ident{repr:12}],
+                                   true)),
+                    ~"::block::stmt");
+    }
+}
 
 // Local Variables:
 // fill-column: 78;

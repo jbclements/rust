@@ -1137,6 +1137,9 @@ pub impl Parser {
         }
     }
 
+    // at the bottom (top?) of the precedence hierarchy,
+    // parse things like parenthesized exprs, funcalls,
+    // macros, return, etc.
     fn parse_bottom_expr(&self) -> @expr {
         maybe_whole_expr!(self);
 
@@ -1447,6 +1450,11 @@ pub impl Parser {
     fn parse_token_tree(&self) -> token_tree {
         maybe_whole!(deref self, nt_tt);
 
+        // this is the fall-through for the 'match' below.
+        // invariants: the current token is not a left-delimiter,
+        // not an EOF, and not the desired right-delimiter (if
+        // it were, parse_seq_to_before_end would have prevented
+        // reaching this point.
         fn parse_non_delim_tt_tok(p: &Parser) -> token_tree {
             maybe_whole!(deref p, nt_tt);
             match *p.token {
@@ -1459,6 +1467,12 @@ pub impl Parser {
                     )
                 );
               }
+/*              token::MOD_SEP => {
+                  p.bump();
+                  parse_path(true);
+              token::IDENT(s,is_mod_name) => {
+                  parse_path(false);
+              }*/
               /* we ought to allow different depths of unquotation */
               token::DOLLAR if *p.quote_depth > 0u => {
                 p.bump();
@@ -1487,8 +1501,13 @@ pub impl Parser {
               }
             }
         }
+/*
+        // collapse idents into a path
+        fn parse_path(starts_with_mod_sep: bool) {
 
-        // turn the next token into a tt_tok:
+        }*/
+
+        // turn the next token into a tt_tok, even if it's a delimiter
         fn parse_any_tt_tok(p: &Parser) -> token_tree{
             let res = tt_tok(*p.span, copy *p.token);
             p.bump();
@@ -1497,18 +1516,17 @@ pub impl Parser {
 
         match *self.token {
             token::EOF => {
-                self.fatal(~"file ended in the middle of a macro invocation");
+                self.fatal(~"file ended with unbalanced delimiters");
             }
             token::LPAREN | token::LBRACE | token::LBRACKET => {
-                // tjc: ??????
-                let ket = token::flip_delimiter(&*self.token);
+                let close_delim = token::flip_delimiter(&*self.token);
                 tt_delim(
                     vec::append(
                         // the open delimiter:
                         ~[parse_any_tt_tok(self)],
                         vec::append(
                             self.parse_seq_to_before_end(
-                                &ket,
+                                &close_delim,
                                 seq_sep_none(),
                                 |p| p.parse_token_tree()
                             ),
@@ -1522,6 +1540,8 @@ pub impl Parser {
         }
     }
 
+    // parse a stream of tokens into a list of token_trees,
+    // up to EOF.
     fn parse_all_token_trees(&self) -> ~[token_tree] {
         let mut tts = ~[];
         while *self.token != token::EOF {
@@ -2048,6 +2068,7 @@ pub impl Parser {
         return e;
     }
 
+    // parse the RHS of a local variable declaration (e.g. '= 14;')
     fn parse_initializer(&self) -> Option<@expr> {
         match *self.token {
           token::EQ => {
@@ -2402,6 +2423,7 @@ pub impl Parser {
         pat_ident(binding_mode, name, sub)
     }
 
+    // parse a local variable declaration
     fn parse_local(&self, is_mutbl: bool,
                    allow_init: bool) -> @local {
         let lo = self.span.lo;
