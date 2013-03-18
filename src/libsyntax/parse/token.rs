@@ -241,7 +241,7 @@ pub fn can_begin_expr(t: &Token) -> bool {
       LPAREN => true,
       LBRACE => true,
       LBRACKET => true,
-      IDENT(_, _) => true,
+      PATH(_, _) => true,
       UNDERSCORE => true,
       TILDE => true,
       LIT_INT(_, _) => true,
@@ -298,7 +298,7 @@ pub fn is_path(t: &Token) -> bool {
 }
 
 pub fn is_identpath(t: &Token) -> bool {
-    match *t { PATH([id], _) => true, _ => false }
+    match *t { PATH([id], false) => true, _ => false }
 }
 
 pub fn is_nonglobal_path(t: &Token) -> bool {
@@ -379,6 +379,7 @@ pub impl ident_interner {
 }
 
 // return a fresh interner, preloaded with special identifiers.
+// EFFECT: stores this interner in TLS
 pub fn mk_fresh_ident_interner() -> @ident_interner {
     // the indices here must correspond to the numbers in
     // special_idents.
@@ -422,9 +423,13 @@ pub fn mk_fresh_ident_interner() -> @ident_interner {
         @~"Self",               // 36
     ];
     
-    @ident_interner {
+    let rv = @ident_interner {
         interner: interner::Interner::prefill(init_vec)
+    };
+    unsafe {
+        task::local_data::local_data_set(interner_key!(), @rv);
     }
+    rv
 }
 
 // if an interner exists in TLS, return it. Otherwise, prepare a
@@ -434,9 +439,7 @@ pub fn mk_ident_interner() -> @ident_interner {
         match task::local_data::local_data_get(interner_key!()) {
             Some(interner) => *interner,
             None => {
-                let rv = mk_fresh_ident_interner();
-                task::local_data::local_data_set(interner_key!(), @rv);
-                rv
+                mk_fresh_ident_interner()
             }
         }
     }

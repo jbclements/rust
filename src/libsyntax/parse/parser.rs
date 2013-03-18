@@ -751,6 +751,7 @@ pub impl Parser {
         return ty_rptr(opt_lifetime, mt);
     }
 
+    // parse an optional mode.
     fn parse_arg_mode(&self) -> mode {
         if self.eat(&token::BINOP(token::MINUS)) {
             self.obsolete(*self.span, ObsoleteMode);
@@ -771,19 +772,18 @@ pub impl Parser {
     }
 
     fn is_named_argument(&self) -> bool {
-        let offset = if *self.token == token::BINOP(token::AND) {
-            1
-        } else if *self.token == token::BINOP(token::MINUS) {
-            1
-        } else if *self.token == token::ANDAND {
-            1
-        } else if *self.token == token::BINOP(token::PLUS) {
-            if self.look_ahead(1) == token::BINOP(token::PLUS) {
-                2
-            } else {
-                1
-            }
-        } else { 0 };
+        let offset = match *self.token {
+            token::BINOP(token::AND) => 1,
+            token::BINOP(token::MINUS) => 1,
+            token::ANDAND => 1,
+            token::BINOP(token::PLUS) => {
+                match self.look_ahead(1) {
+                    token::BINOP(token::PLUS) => 2,
+                    _ => 1
+                }
+            },
+            _ => 0
+        };
         if offset == 0 {
             is_identpath(&*self.token)
                 && self.look_ahead(1) == token::COLON
@@ -817,6 +817,7 @@ pub impl Parser {
                   ty: t, pat: pat, id: self.get_id() }
     }
 
+    // parse a single function argument
     fn parse_arg(&self) -> arg_or_capture_item {
         either::Left(self.parse_arg_general(true))
     }
@@ -897,6 +898,7 @@ pub impl Parser {
             token::PATH(ids,is_global) => {
                 let lo = self.span.lo;
                 let hi = self.span.hi;
+                self.bump();
                 @ast::Path { span: mk_sp(lo, hi),
                             global: is_global,
                             idents: @ids,
@@ -1136,7 +1138,6 @@ pub impl Parser {
     // parse things like parenthesized exprs, funcalls,
     // macros, return, etc.
     fn parse_bottom_expr(&self) -> @expr {
-        debug!("2013-03-15");
         maybe_whole_expr!(self);
 
         let lo = self.span.lo;
@@ -2270,6 +2271,7 @@ pub impl Parser {
         return (fields, etc);
     }
 
+    // parse a pattern
     fn parse_pat(&self, refutable: bool) -> @pat {
         maybe_whole!(self, nt_pat);
 
@@ -2583,8 +2585,6 @@ pub impl Parser {
 
             check_expected_item(self, first_item_attrs);
 
-            // Potential trouble: if we allow macros with paths instead of
-            // idents, we'd need to look ahead past the whole path here...
             let pth = self.parse_path_without_tps();
             self.bump();
 
@@ -2900,6 +2900,7 @@ pub impl Parser {
         ast::TyParam { ident: ident, id: self.get_id(), bounds: bounds }
     }
 
+    // parse a set of optional generic type parameters
     fn parse_generics(&self) -> ast::Generics {
         if self.eat(&token::LT) {
             let lifetimes = self.parse_lifetimes();
@@ -2932,7 +2933,8 @@ pub impl Parser {
         (lifetimes, opt_vec::take_vec(result))
     }
 
-    fn parse_fn_decl(&self, parse_arg_fn: &fn(&Parser) -> arg_or_capture_item)
+    // parse the argument list and result type of a function declaration
+    fn parse_fn_decl(&self)
         -> fn_decl
     {
         let args_or_capture_items: ~[arg_or_capture_item] =
@@ -2940,7 +2942,7 @@ pub impl Parser {
                 &token::LPAREN,
                 &token::RPAREN,
                 seq_sep_trailing_disallowed(token::COMMA),
-                parse_arg_fn
+                |p| p.parse_arg()
             );
 
         let inputs = either::lefts(args_or_capture_items);
@@ -2973,6 +2975,8 @@ pub impl Parser {
         self.bump();
     }
 
+    // parse the argument list and result type of a function
+    // that may have a self type.
     fn parse_fn_decl_with_self(
         &self,
         parse_arg_fn:
@@ -3146,6 +3150,7 @@ pub impl Parser {
         }
     }
 
+    // parse the name and optional generic types of a function header.
     fn parse_fn_header(&self) -> (ident, ast::Generics) {
         let id = self.parse_ident();
         let generics = self.parse_generics();
@@ -3163,9 +3168,10 @@ pub impl Parser {
                      span: mk_sp(lo, hi) }
     }
 
+    // parse an item-position function declaration.
     fn parse_item_fn(&self, purity: purity) -> item_info {
         let (ident, generics) = self.parse_fn_header();
-        let decl = self.parse_fn_decl(|p| p.parse_arg());
+        let decl = self.parse_fn_decl();
         let (inner_attrs, body) = self.parse_inner_attrs_and_block(true);
         (ident, item_fn(decl, purity, generics, body), Some(inner_attrs))
     }
@@ -3679,7 +3685,7 @@ pub impl Parser {
         let vis = self.parse_visibility();
         let purity = self.parse_fn_purity();
         let (ident, generics) = self.parse_fn_header();
-        let decl = self.parse_fn_decl(|p| p.parse_arg());
+        let decl = self.parse_fn_decl();
         let mut hi = self.span.hi;
         self.expect(&token::SEMI);
         @ast::foreign_item { ident: ident,
