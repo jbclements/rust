@@ -116,7 +116,7 @@ pub enum nonterminal {
     nt_pat( @ast::pat),
     nt_expr(@ast::expr),
     nt_ty(  @ast::Ty),
-    nt_ident(ast::ident, bool),
+    nt_pathtok(~[ast::ident],bool),
     nt_path(@ast::Path),
     nt_tt(  @ast::token_tree), //needs @ed to break a circularity
     nt_matchers(~[ast::matcher])
@@ -225,7 +225,7 @@ pub fn to_str(in: @ident_interner, t: &Token) -> ~str {
                       nt_pat(*) => ~"pattern",
                       nt_expr(*) => fail!(~"should have been handled above"),
                       nt_ty(*) => ~"type",
-                      nt_ident(*) => ~"identifier",
+                      nt_pathtok(*) => ~"path token",
                       nt_path(*) => ~"path",
                       nt_tt(*) => ~"tt",
                       nt_matchers(*) => ~"matcher sequence"
@@ -260,9 +260,8 @@ pub fn can_begin_expr(t: &Token) -> bool {
       OROR => true, // in lambda syntax
       MOD_SEP => true,
       INTERPOLATED(nt_expr(*))
-      | INTERPOLATED(nt_ident(*))
       | INTERPOLATED(nt_block(*))
-      | INTERPOLATED(nt_path(*)) => true,
+      | INTERPOLATED(nt_pathtok(*)) => true,
       _ => false
     }
 }
@@ -294,19 +293,16 @@ pub fn is_lit(t: &Token) -> bool {
     }
 }
 
-pub fn is_ident(t: &Token) -> bool {
-    match *t { IDENT(_, _) => true, _ => false }
+pub fn is_path(t: &Token) -> bool {
+    match *t { PATH(_, _) | INTERPOLATED(nt_path(*)) => true, _ => false }
 }
 
-pub fn is_ident_or_path(t: &Token) -> bool {
-    match *t {
-      IDENT(_, _) | INTERPOLATED(nt_path(*)) => true,
-      _ => false
-    }
+pub fn is_identpath(t: &Token) -> bool {
+    match *t { PATH([id], _) => true, _ => false }
 }
 
-pub fn is_plain_ident(t: &Token) -> bool {
-    match *t { IDENT(_, false) => true, _ => false }
+pub fn is_nonglobal_path(t: &Token) -> bool {
+    match *t { PATH(ids, false) => true, _ => false }    
 }
 
 pub fn is_bar(t: &Token) -> bool {
@@ -383,59 +379,63 @@ pub impl ident_interner {
 }
 
 // return a fresh interner, preloaded with special identifiers.
+pub fn mk_fresh_ident_interner() -> @ident_interner {
+    // the indices here must correspond to the numbers in
+    // special_idents.
+    let init_vec = ~[
+        @~"_",                  // 0
+        @~"anon",               // 1
+        @~"drop",               // 2
+        @~"",                   // 3
+        @~"unary",              // 4
+        @~"!",                  // 5
+        @~"[]",                 // 6
+        @~"unary-",             // 7
+        @~"__extensions__",     // 8
+        @~"self",               // 9
+        @~"item",               // 10
+        @~"block",              // 11
+        @~"stmt",               // 12
+        @~"pat",                // 13
+        @~"expr",               // 14
+        @~"ty",                 // 15
+        @~"ident",              // 16
+        @~"path",               // 17
+        @~"tt",                 // 18
+        @~"matchers",           // 19
+        @~"str",                // 20
+        @~"TyVisitor",          // 21
+        @~"arg",                // 22
+        @~"descrim",            // 23
+        @~"__rust_abi",         // 24
+        @~"__rust_stack_shim",  // 25
+        @~"TyDesc",             // 26
+        @~"dtor",               // 27
+        @~"main",               // 28
+        @~"<opaque>",           // 29
+        @~"blk",                // 30
+        @~"static",             // 31
+        @~"intrinsic",          // 32
+        @~"__foreign_mod__",    // 33
+        @~"__field__",          // 34
+        @~"C",                  // 35
+        @~"Self",               // 36
+    ];
+    
+    @ident_interner {
+        interner: interner::Interner::prefill(init_vec)
+    }
+}
+
+// if an interner exists in TLS, return it. Otherwise, prepare a
+// fresh one.
 pub fn mk_ident_interner() -> @ident_interner {
     unsafe {
         match task::local_data::local_data_get(interner_key!()) {
             Some(interner) => *interner,
             None => {
-                // the indices here must correspond to the numbers in
-                // special_idents.
-                let init_vec = ~[
-                    @~"_",                  // 0
-                    @~"anon",               // 1
-                    @~"drop",               // 2
-                    @~"",                   // 3
-                    @~"unary",              // 4
-                    @~"!",                  // 5
-                    @~"[]",                 // 6
-                    @~"unary-",             // 7
-                    @~"__extensions__",     // 8
-                    @~"self",               // 9
-                    @~"item",               // 10
-                    @~"block",              // 11
-                    @~"stmt",               // 12
-                    @~"pat",                // 13
-                    @~"expr",               // 14
-                    @~"ty",                 // 15
-                    @~"ident",              // 16
-                    @~"path",               // 17
-                    @~"tt",                 // 18
-                    @~"matchers",           // 19
-                    @~"str",                // 20
-                    @~"TyVisitor",          // 21
-                    @~"arg",                // 22
-                    @~"descrim",            // 23
-                    @~"__rust_abi",         // 24
-                    @~"__rust_stack_shim",  // 25
-                    @~"TyDesc",             // 26
-                    @~"dtor",               // 27
-                    @~"main",               // 28
-                    @~"<opaque>",           // 29
-                    @~"blk",                // 30
-                    @~"static",             // 31
-                    @~"intrinsic",          // 32
-                    @~"__foreign_mod__",    // 33
-                    @~"__field__",          // 34
-                    @~"C",                  // 35
-                    @~"Self",               // 36
-                ];
-
-                let rv = @ident_interner {
-                    interner: interner::Interner::prefill(init_vec)
-                };
-
+                let rv = mk_fresh_ident_interner();
                 task::local_data::local_data_set(interner_key!(), @rv);
-
                 rv
             }
         }
@@ -526,15 +526,14 @@ pub fn reserved_keyword_table() -> HashMap<~str, ()> {
 #[cfg(test)]
 mod test{
     use super::*;
-    use util::testing::check_equal;
     use ast;
     
     #[test] fn t1 () {
         let i = mk_ident_interner();
-        check_equal(to_str(i,&PATH(~[ast::ident{repr:10},ast::ident{repr:11}],
+        assert_eq!(to_str(i,&PATH(~[ast::ident{repr:10},ast::ident{repr:11}],
                                    false)),
                     ~"item::block");
-        check_equal(to_str(i,&PATH(~[ast::ident{repr:11},ast::ident{repr:12}],
+        assert_eq!(to_str(i,&PATH(~[ast::ident{repr:11},ast::ident{repr:12}],
                                    true)),
                     ~"::block::stmt");
     }

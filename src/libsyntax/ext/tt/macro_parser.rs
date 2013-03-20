@@ -239,11 +239,11 @@ pub fn parse_or_else(
 pub fn parse(
     sess: @mut ParseSess,
     cfg: ast::crate_cfg,
-    rdr: @reader,
+    tt_rdr: @mut TtReader,
     ms: ~[matcher]
 ) -> parse_result {
     let mut cur_eis = ~[];
-    let rdr = tt_rdr as reader; 
+    let rdr = tt_rdr as @reader; 
     cur_eis.push(initial_matcher_pos(copy ms, None, rdr.peek().sp.lo));
 
     loop {
@@ -396,7 +396,7 @@ pub fn parse(
             } else /* bb_eis.len() == 1 */ {
                 let rust_parser = Parser(sess, copy cfg,
                                          (dup_tt_reader(tt_rdr)
-                                          as reader));
+                                          as @reader));
 
                 let mut ei = bb_eis.pop();
                 match ei.elts[ei.idx].node {
@@ -432,7 +432,7 @@ pub fn parse_nt(p: Parser, name: ~str) -> nonterminal {
       ~"ty" => token::nt_ty(p.parse_ty(false /* no need to disambiguate*/)),
       // this could be handled like a token, since it is one
       ~"ident" => match *p.token {
-        token::IDENT(sn,b) => { p.bump(); token::nt_ident(sn,b) }
+        token::PATH([id],false) => {p.bump(); token::nt_pathtok(~[id],false)}
         _ => p.fatal(~"expected ident, found "
                      + token::to_str(p.reader.interner(), &copy *p.token))
       },

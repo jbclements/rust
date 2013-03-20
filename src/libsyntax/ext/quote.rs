@@ -385,6 +385,7 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
+        // NOTE: these spans could be literal, couldn't they?
         IDENT(ident, b) => {
             return build::mk_call(cx, sp,
                                   ids_ext(cx, ~[~"IDENT"]),
@@ -398,6 +399,14 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
+        PATH(ids, is_global) => {
+            fail!(~"not implemented 2013-03-12");
+            /*return build::mk_call(cx, sp,
+                                  ids_ext(cx, ~[~"PATH"]),
+                                  ~[mk_ident(cx, sp, ident),
+                                    build::mk_lit(cx, sp, ast::lit_bool(is_global))]);*/
+        }
+        
         DOC_COMMENT(ident) => {
             return build::mk_call(cx, sp,
                                   ids_ext(cx, ~[~"DOC_COMMENT"]),
@@ -619,3 +628,17 @@ fn expand_parse_call(cx: @ext_ctxt,
                     arg_exprs)
 }
 
+
+/*
+#[cfg(test)]
+mod test {
+    use parse;
+    use core::option::None;
+    
+    #[test] fn t1 () {
+        let ext_cx = @parse::new_parse_sess(None);
+        let tts = quote_tokens!(3 + {4 ::a::b});
+        io::println(to_json_str(tts));
+    }
+}
+*/

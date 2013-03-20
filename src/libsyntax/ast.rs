@@ -25,6 +25,7 @@ use opt_vec::OptVec;
 // table and a SyntaxContext to track renaming and
 // macro expansion per Flatt et al., "Macros
 // That Work Together"
+// NOTE : make this a newtype... when equality works?
 #[deriving(Eq)]
 pub struct ident { repr: uint }
 
@@ -1408,26 +1409,25 @@ mod test {
     use std;
     use codemap::*;
     use super::*;
-    use util::testing::check_equal;
     use super::Name;
 
 
     #[test] fn xorpush_test () {
         let mut s = ~[];
         xorPush(&mut s,14);
-        check_equal(s,~[14]);
+        assert_eq!(s,~[14]);
         xorPush(&mut s,14);
-        check_equal(s,~[]);
+        assert_eq!(s,~[]);
         xorPush(&mut s,14);
-        check_equal(s,~[14]);
+        assert_eq!(s,~[14]);
         xorPush(&mut s,15);
-        check_equal(s,~[14,15]);
+        assert_eq!(s,~[14,15]);
         xorPush (&mut s,16);
-        check_equal (s,~[14,15,16]);
+        assert_eq! (s,~[14,15,16]);
         xorPush (&mut s,16);
-        check_equal (s,~[14,15]);
+        assert_eq! (s,~[14,15]);
         xorPush (&mut s,15);
-        check_equal (s,~[14]);
+        assert_eq! (s,~[14]);
     }
 
     // convert a list of uints to a Name
@@ -1443,13 +1443,13 @@ mod test {
     #[test] fn test_marksof () {
         let stopname = uints_to_name(&~[12,14,78]);
         let name1 = uints_to_name(&~[4,9,7]);
-        check_equal(marksof (MT,stopname),~[]);
-        check_equal (marksof (Mark (4,@Mark(98,@MT)),stopname),~[4,98]);
+        assert_eq!(marksof (MT,stopname),~[]);
+        assert_eq! (marksof (Mark (4,@Mark(98,@MT)),stopname),~[4,98]);
         // does xoring work?
-        check_equal (marksof (Mark (5, @Mark (5, @Mark (16,@MT))),stopname),
+        assert_eq! (marksof (Mark (5, @Mark (5, @Mark (16,@MT))),stopname),
                      ~[16]);
         // does nested xoring work?
-        check_equal (marksof (Mark (5,
+        assert_eq! (marksof (Mark (5,
                                     @Mark (10,
                                            @Mark (10,
                                                   @Mark (5,
@@ -1457,10 +1457,10 @@ mod test {
                               stopname),
                      ~[16]);
         // stop has no effect on marks
-        check_equal (marksof (Mark (9, @Mark (14, @Mark (12, @MT))),stopname),
+        assert_eq! (marksof (Mark (9, @Mark (14, @Mark (12, @MT))),stopname),
                      ~[9,14,12]);
         // rename where stop doesn't match:
-        check_equal (marksof (Mark (9, @Rename
+        assert_eq! (marksof (Mark (9, @Rename
                                     (name1,
                                      @Mark (4, @MT),
                                      uints_to_name(&~[100,101,102]),
@@ -1469,7 +1469,7 @@ mod test {
                      ~[9,14]);
         // rename where stop does match
         ;
-        check_equal (marksof (Mark(9, @Rename (name1,
+        assert_eq! (marksof (Mark(9, @Rename (name1,
                                                @Mark (4, @MT),
                                                stopname,
                                                @Mark (14, @MT))),
@@ -1482,7 +1482,7 @@ mod test {
         let bogus_span = span {lo:BytePos(10),
                                hi:BytePos(20),
                                expn_info:None};
-        let _e : crate =
+        let e : crate =
             spanned{
             node: crate_{
                 module: _mod {view_items: ~[], items: ~[]},
@@ -1491,7 +1491,7 @@ mod test {
             },
             span: bogus_span};
         // doesn't matter which encoder we use....
-        let _f = (@_e as std::serialize::Encodable::<std::json::Encoder>);
+        let _f = (@e as @std::serialize::Encodable<std::json::Encoder>);
     }
 
     // utility function for adding a bunch of marks to a syntax context for
@@ -1506,7 +1506,7 @@ mod test {
     }
 
     #[test] fn markchain_test () {
-        check_equal(markchain(~[43,44,45],@MT),
+        assert_eq!(markchain(~[43,44,45],@MT),
                     @Mark(43,@Mark(44,@Mark(45,@MT))));
     }
 
@@ -1515,35 +1515,35 @@ mod test {
         let a10 = uint_to_name(50);
         let a11 = uint_to_name(51);
         // - ctxt is MT
-        check_equal(resolve(a,&MT),a);
+        assert_eq!(resolve(a,&MT),a);
         // - simple ignored marks
-        check_equal(resolve(a,&Mark(1,@Mark(2,@Mark(3,@MT)))),a);
+        assert_eq!(resolve(a,&Mark(1,@Mark(2,@Mark(3,@MT)))),a);
         // - orthogonal rename where names don't match
-        check_equal(resolve(a,&Rename(a10,@MT,a11,@Mark(12,@MT))),a);
+        assert_eq!(resolve(a,&Rename(a10,@MT,a11,@Mark(12,@MT))),a);
         // - rename where names do match, but marks don't
-        check_equal(resolve(a,&Rename(a,@Mark(1,@MT),a10,
+        assert_eq!(resolve(a,&Rename(a,@Mark(1,@MT),a10,
                                        @Mark(1,@Mark(2,@MT)))),
                     a);
         // - rename where names and marks match
-        check_equal(resolve(a,&Rename(a,@Mark(1,@Mark(2,@MT)),a10,
+        assert_eq!(resolve(a,&Rename(a,@Mark(1,@Mark(2,@MT)),a10,
                                        @Mark(1,@Mark(2,@MT)))),
                     a10);
         // - two renames of the same var.. can only happen if you use
         // local-expand to prevent the inner binding from being renamed
         // during the rename-pass caused by the first:
-        check_equal(resolve(a,&Rename(a, @MT,
+        assert_eq!(resolve(a,&Rename(a, @MT,
                                        a10, @Rename(a,@MT,
                                                     a11,@MT))),
                     a11);
         // the simplest double-rename:
         let a_to_a10 = Rename(a,@MT,a10,@MT);
         let a10_to_a11 = Rename(a,@a_to_a10,a11,@a_to_a10);
-        check_equal(resolve(a,&a10_to_a11),a11);
+        assert_eq!(resolve(a,&a10_to_a11),a11);
         // mark on the outside doesn't stop rename:
-        check_equal(resolve(a,&Mark(9,@a10_to_a11)),a11);
+        assert_eq!(resolve(a,&Mark(9,@a10_to_a11)),a11);
         // but mark on the inside does:
         let a10_to_a11_b = Rename(a,@a_to_a10,a11,@Mark(9,@a_to_a10));
-        check_equal(resolve(a,&a10_to_a11_b),a10);
+        assert_eq!(resolve(a,&a10_to_a11_b),a10);
     }
 
 }

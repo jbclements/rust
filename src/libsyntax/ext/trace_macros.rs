@@ -33,7 +33,7 @@ pub fn expand_trace_macros(cx: @ext_ctxt,
     let rust_parser = Parser(
         sess,
         copy cfg,
-        (dup_tt_reader(tt_rdr) as reader)
+        (dup_tt_reader(tt_rdr) as @reader)
     );
 
     if rust_parser.is_keyword(&~"true") {
@@ -46,7 +46,7 @@ pub fn expand_trace_macros(cx: @ext_ctxt,
 
     rust_parser.bump();
 
-    let rust_parser = Parser(sess, cfg, (dup_tt_reader(tt_rdr) as reader));
+    let rust_parser = Parser(sess, cfg, (dup_tt_reader(tt_rdr) as @reader));
     let result = rust_parser.parse_expr();
     base::MRExpr(result)
 }

@@ -28,7 +28,7 @@ pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
             }
         } else {
             match *e {
-                ast::tt_tok(_, token::IDENT(ident,_)) =>
+                ast::tt_tok(_, token::PATH([ident],is_global)) =>
                 res_str += cx.str_of(ident),
                 _ => cx.span_fatal(sp, ~"concat_idents! \
                                          requires ident args.")

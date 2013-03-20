@@ -564,7 +564,7 @@ pub fn expand_crate(parse_sess: @mut parse::ParseSess,
 
 // given a function from paths to paths, produce
 // an ast_fold that applies that function:
-fn fun_to_path_folder(f: @fn(&ast::Path)->ast::Path) -> ast_fold{
+fn fun_to_path_folder(f: @fn(&ast::Path)->ast::Path) -> @ast_fold{
     let afp = default_ast_fold();
     let f_pre = @AstFoldFns{
         fold_path : |p, _| f(p),

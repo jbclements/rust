@@ -206,6 +206,11 @@ pub fn parse_tts_from_source_str(
     maybe_aborted(p.parse_all_token_trees(),p)
 }
 
+// given a function and parsing information (source str,
+// filename, crate cfg, and sess), create a parser,
+// apply the function, and check that the parser
+// consumed all of the input before returning the function's
+// result.
 pub fn parse_from_source_str<T>(
     f: &fn (Parser) -> T,
     name: ~str, ss: codemap::FileSubstr,
@@ -227,6 +232,7 @@ pub fn parse_from_source_str<T>(
     maybe_aborted(r,p)
 }
 
+// return the next unused node id.
 pub fn next_node_id(sess: @mut ParseSess) -> node_id {
     let rv = sess.next_id;
     sess.next_id += 1;
@@ -332,8 +338,66 @@ mod test {
     use core::option::Option;
     use core::option::Some;
     use core::option::None;
-    use codemap::dummy_sp;
+    use core::int;
+    use core::num::NumCast;
+    use codemap::{dummy_sp, CodeMap, span, BytePos};
     use ast;
+    use parse::parser::Parser;
+    use parse::token::{ident_interner, mk_ident_interner, mk_fresh_ident_interner};
+    use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
+
+    // add known names to interner for testing
+    fn mk_testing_interner() -> @ident_interner {
+        let i = mk_fresh_ident_interner();
+        // baby hack; in order to put the identifiers
+        // 'a' and 'b' at known locations, we're going
+        // to fill up the interner to length 100. If
+        // the # of preloaded items on the interner
+        // ever gets larger than 100, we'll have to
+        // adjust this number (say, to 200) and
+        // change the numbers in the identifier
+        // test cases below.
+
+        fail_unless!(i.len() < 100);
+        for int::range(0,100-((i.len()).to_int())) |_dc| {
+            i.gensym(@~"dontcare");
+        }
+        i.intern(@~"a");
+        i.intern(@~"b");
+        i.intern(@~"c");
+        i.intern(@~"d");
+        i.intern(@~"return");
+        fail_unless!(i.get(ast::ident{repr:101}) == @~"b");
+        i
+    }
+
+    // make a parse_sess that's closed over a
+    // testing interner (where a -> 100, b -> 101)
+    fn mk_testing_parse_sess() -> @mut ParseSess {
+        let interner = mk_testing_interner();
+        let cm = @CodeMap::new();
+        @mut ParseSess {
+            cm: cm,
+            next_id: 1,
+            span_diagnostic: mk_span_handler(mk_handler(None), cm),
+            interner: interner,
+        }
+    }
+
+    // map a string to tts, using a made-up filename
+    fn string_to_tts (source_str : @~str) -> ~[ast::token_tree] {
+        parse_tts_from_source_str(
+            ~"bogofile",
+            source_str,
+            ~[],
+            mk_testing_parse_sess())
+    }
+
+    // map tts to a parser
+    fn tts_to_parser(tts : ~[ast::token_tree]) -> @Parser {
+        let s = mk_testing_parse_sess();
+        @new_parser_from_tts(s,~[],tts)
+    }
 
     #[test] fn to_json_str<E : Encodable<std::json::Encoder>>(val: @E) -> ~str {
         do io::with_str_writer |writer| {
@@ -342,50 +406,102 @@ mod test {
     }
 
     fn string_to_crate (source_str : @~str) -> @ast::crate {
-        parse_crate_from_source_str(
-            ~"bogofile",
-            source_str,
-            ~[],
-            new_parse_sess(None))
+        tts_to_parser(string_to_tts(source_str)).parse_crate_mod(~[])
     }
 
-    fn string_to_item (source_str : @~str) -> @ast::item {
-        match parse_item_from_source_str(
-            ~"bogofile",
-            source_str, ~[], ~[],
-            new_parse_sess(None)) {
-            Some (s) => s,
-            None => {fail!(~"expected successful item parse, got None");}
-        }
+    fn string_to_expr (source_str : @~str) -> @ast::expr {
+        tts_to_parser(string_to_tts(source_str)).parse_expr()
+    }
+
+    fn string_to_item (source_str : @~str) -> Option<@ast::item> {
+        tts_to_parser(string_to_tts(source_str)).parse_item(~[])
+    }
+
+    // produce a codemap::span
+    fn sp (a: uint, b: uint) -> span {
+        span{lo:BytePos(a),hi:BytePos(b),expn_info:None}
+    }
+
+    // convert a vector of uints to a vector of ast::idents
+    fn ints_to_idents(ids: ~[uint]) -> ~[ast::ident] {
+        ids.map(|u| ast::ident{repr:*u})
+    }
+
+    // test helper to simplify producing PATH tokens
+    fn testpath(lo: uint, hi: uint, ids: ~[uint], is_global: bool)
+        -> ast::token_tree {
+        ast::tt_tok(sp(lo,hi),token::PATH(ints_to_idents(ids),is_global))
     }
     
-    fn string_to_tts (source_str : @~str) -> ~[ast::token_tree] {
-        parse_tts_from_source_str(
-            ~"bogofile",
-            source_str,
-            ~[],
-            new_parse_sess(None))
+    #[test] fn tt_paths_1 () {
+        let return_id = 104;
+        assert_eq! (string_to_tts(@~"a"),
+                     ~[testpath(0,1,~[100],false)]);
+        assert_eq! (string_to_tts(@~" a b"),
+                     ~[testpath (1,2,~[100],false),
+                       testpath (3,4,~[101],false)]);
+        assert_eq! (string_to_tts(@~"a::b"),
+                     ~[testpath (0,4,~[100,101],false)]);
+        assert_eq! (string_to_tts(@~"::a::b"),
+                     ~[testpath(0,6,~[100,101],true)]);
+        assert_eq! (string_to_tts(@~"a:: b"),
+                     ~[testpath(0,5,~[100,101],false)]);
+        assert_eq! (string_to_tts(@~"a :: b"),
+                     ~[testpath(0,6,~[100,101],false)]);
+        assert_eq! (string_to_tts(@~"::a:: c"),
+                     ~[testpath(0,7,~[100,102],true)]);
+        assert_eq! (string_to_tts(@~"return:: c"),
+                     ~[testpath(0,10,~[return_id,102],false)]);
+        assert_eq! (string_to_tts(@~"return ::c"),
+                     ~[testpath(0,6,~[return_id],false),
+                       testpath(7,10,~[102],true)]);
     }
 
-    #[test] fn tts_1 () {
-        let tts = string_to_tts (@~"::ab:: cd");
-        check_equal (tts,
-                    ~[ast::tt_delim(~[ast::tt_tok(dummy_sp(),token::LPAREN)])]);
+    #[test] fn aaa_path_exprs () {
+        assert_eq!(string_to_expr(@~"a"),
+                   @ast::expr{id:1,
+                              callee_id:2,
+                              node:ast::expr_path(@ast::Path {span:sp(0,1),
+                                                              global:false,
+                                                              idents:@ints_to_idents(~[100]),
+                                                              rp:None,
+                                                              types:~[],
+                                                               ctxt:@ast::MT}),
+                              span:sp(0,1)})
+    }
+    
+    #[test] fn aab_path_exprs () {
+        assert_eq!(string_to_expr(@~"::a::b"),
+                   @ast::expr{id:1,
+                               callee_id:2,
+                               node:ast::expr_path(@ast::Path {span:sp(0,6),
+                                                               global:true,
+                                                               idents:@ints_to_idents(~[100,101]),
+                                                               rp:None,
+                                                               types:~[],
+                                                               ctxt:@ast::MT}),
+                              span:sp(0,6)})
+    }
+    
+    #[should_fail]
+    #[test] fn bad_path_expr_1() {
+        string_to_expr(@~"::abc::def::return");
     }
 
-    fn string_to_tt_to_crate (source_str : @~str) -> @ast::crate {
-        let tts = string_to_tts(source_str);
-        new_parser_from_tts(new_parse_sess(None),~[],tts)
-            .parse_crate_mod(~[])
+    #[test] fn tt_paths_2 () {
+        // can this occur? not sure:
+        /*assert_eq!(string_to_tts(@~"::{"),
+                    ~[ast::tt_tok(sp(0,2),token::MOD_SEP),
+                      ast::tt_tok(sp(2,3),token::LBRACE)]);
+        assert_eq!(string_to_tts(@~"::<"),
+                    ~[ast::tt_tok(sp(0,2),token::MOD_SEP),
+                      ast::tt_tok(sp(2,3),token::LT)]);*/
+        assert_eq!(string_to_tts(@~"b::c::<"),
+                    ~[testpath(0,4,~[101,102],false),
+                      ast::tt_tok(sp(4,6),token::MOD_SEP),
+                      ast::tt_tok(sp(6,7),token::LT)]);
     }
 
-    // make sure that parsing from TTs produces the same result
-    // as parsing from strings
-    #[test] fn tts_produce_the_same_result () {
-        let source_str = @~"fn foo (x : int) { x; }";
-        assert_eq!(string_to_tt_to_crate(source_str),
-                     string_to_crate(source_str));
-    }
 
     // check the contents of the tt manually:
     #[test] fn alltts () {
@@ -396,15 +512,15 @@ mod test {
             ~[],
             new_parse_sess(None));
         assert_eq!(to_json_str(@tts),
-                    ~"[[\"tt_tok\",[null,[\"IDENT\",[\"fn\",false]]]],\
-                      [\"tt_tok\",[null,[\"IDENT\",[\"foo\",false]]]],\
+                    ~"[[\"tt_tok\",[null,[\"PATH\",[[\"fn\"],false]]]],\
+                      [\"tt_tok\",[null,[\"PATH\",[[\"foo\"],false]]]],\
                       [\"tt_delim\",[[[\"tt_tok\",[null,[\"LPAREN\",[]]]],\
-                      [\"tt_tok\",[null,[\"IDENT\",[\"x\",false]]]],\
+                      [\"tt_tok\",[null,[\"PATH\",[[\"x\"],false]]]],\
                       [\"tt_tok\",[null,[\"COLON\",[]]]],\
-                      [\"tt_tok\",[null,[\"IDENT\",[\"int\",false]]]],\
+                      [\"tt_tok\",[null,[\"PATH\",[[\"int\"],false]]]],\
                       [\"tt_tok\",[null,[\"RPAREN\",[]]]]]]],\
                       [\"tt_delim\",[[[\"tt_tok\",[null,[\"LBRACE\",[]]]],\
-                      [\"tt_tok\",[null,[\"IDENT\",[\"x\",false]]]],\
+                      [\"tt_tok\",[null,[\"PATH\",[[\"x\"],false]]]],\
                       [\"tt_tok\",[null,[\"SEMI\",[]]]],\
                       [\"tt_tok\",[null,[\"RBRACE\",[]]]]]]]]"
                    );

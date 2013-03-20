@@ -66,7 +66,7 @@ pub struct AstFoldFns {
     fold_foreign_mod: @fn(&foreign_mod, @ast_fold) -> foreign_mod,
     fold_variant: @fn(&variant_, span, @ast_fold) -> (variant_, span),
     fold_ident: @fn(ident, @ast_fold) -> ident,
-    fold_path: @fn(@Path, @ast_fold) -> path,
+    fold_path: @fn(@Path, @ast_fold) -> Path,
     fold_local: @fn(&local_, span, @ast_fold) -> (local_, span),
     map_exprs: @fn(@fn(@expr) -> @expr, &[@expr]) -> ~[@expr],
     new_id: @fn(node_id) -> node_id,

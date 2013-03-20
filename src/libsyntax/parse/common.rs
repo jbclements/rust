@@ -47,17 +47,29 @@ pub fn seq_sep_none() -> SeqSep {
     }
 }
 
+// maps any token back to a string. not necessary if you know it's
+// an identifier....
 pub fn token_to_str(reader: @reader, token: &token::Token) -> ~str {
     token::to_str(reader.interner(), token)
 }
 
 pub impl Parser {
+    // convert a token to a string using self's reader
+    fn token_to_str(&self, token: &token::Token) -> ~str {
+        token::to_str(self.reader.interner(), token)
+    }
+
+    // convert the current token to a string using self's reader
+    fn this_token_to_str(&self) -> ~str {
+        self.token_to_str(self.token)
+    }
+    
     fn unexpected_last(&self, t: &token::Token) -> ! {
         self.span_fatal(
             *self.last_span,
             fmt!(
                 "unexpected token: `%s`",
-                token_to_str(self.reader, t)
+                self.token_to_str(t)
             )
         );
     }
@@ -66,7 +78,7 @@ pub impl Parser {
         self.fatal(
             fmt!(
                 "unexpected token: `%s`",
-                token_to_str(self.reader, &copy *self.token)
+                self.this_token_to_str()
             )
         );
     }
@@ -80,22 +92,24 @@ pub impl Parser {
             self.fatal(
                 fmt!(
                     "expected `%s` but found `%s`",
-                    token_to_str(self.reader, t),
-                    token_to_str(self.reader, &copy *self.token)
+                    self.token_to_str(t),
+                    self.this_token_to_str()
                 )
             )
         }
     }
 
+    // NOTE: this is going to discard hygiene information....
+    // we may have to make names of things into PATH tokens.
     fn parse_ident(&self) -> ast::ident {
         self.check_strict_keywords();
         self.check_reserved_keywords();
         match *self.token {
-            token::IDENT(i, _) => {
+            token::PATH([id], false) => {
                 self.bump();
-                i
+                id
             }
-            token::INTERPOLATED(token::nt_ident(*)) => {
+            token::INTERPOLATED(token::nt_pathtok(*)) => {
                 self.bug(
                     ~"ident interpolation not converted to real token"
                 );
@@ -104,7 +118,7 @@ pub impl Parser {
                 self.fatal(
                     fmt!(
                         "expected ident, found `%s`",
-                        token_to_str(self.reader, &copy *self.token)
+                        self.this_token_to_str()
                     )
                 );
             }
@@ -128,6 +142,7 @@ pub impl Parser {
     // Storing keywords as interned idents instead of strings would be nifty.
 
     // A sanity check that the word we are asking for is a known keyword
+    // NOTE: this could be done statically....
     fn require_keyword(&self, word: &~str) {
         if !self.keywords.contains_key(word) {
             self.bug(fmt!("unknown keyword: %s", *word));
@@ -138,7 +153,7 @@ pub impl Parser {
     // followed immediately by :: .
     fn token_is_word(&self, word: &~str, tok: &token::Token) -> bool {
         match *tok {
-            token::IDENT(sid, false) => { *self.id_to_str(sid) == *word }
+            token::PATH([id], false) => { *self.id_to_str(id) == *word }
              _ => { false }
         }
     }
@@ -152,12 +167,14 @@ pub impl Parser {
         self.token_is_keyword(word, &copy *self.token)
     }
 
+    fn id_is_any_keyword(&self, id: ast::ident) -> bool {
+        self.keywords.contains_key(self.id_to_str(id))
+    }
+
     fn is_any_keyword(&self, tok: &token::Token) -> bool {
         match *tok {
-          token::IDENT(sid, false) => {
-            self.keywords.contains_key(self.id_to_str(sid))
-          }
-          _ => false
+            token::PATH([id],false) => self.id_is_any_keyword(id),
+            _ => false
         }
     }
 
@@ -167,7 +184,7 @@ pub impl Parser {
     fn eat_keyword(&self, word: &~str) -> bool {
         self.require_keyword(word);
         let is_kw = match *self.token {
-            token::IDENT(sid, false) => *word == *self.id_to_str(sid),
+            token::PATH([id], false) => *word == *self.id_to_str(id),
             _ => false
         };
         if is_kw { self.bump() }
@@ -184,7 +201,7 @@ pub impl Parser {
                 fmt!(
                     "expected `%s`, found `%s`",
                     *word,
-                    token_to_str(self.reader, &copy *self.token)
+                    self.this_token_to_str()
                 )
             );
         }
@@ -198,9 +215,8 @@ pub impl Parser {
     // signal an error if the current token is a strict keyword
     fn check_strict_keywords(&self) {
         match *self.token {
-            token::IDENT(_, false) => {
-                let w = token_to_str(self.reader, &copy *self.token);
-                self.check_strict_keywords_(&w);
+            token::PATH([id], false) => {
+                self.check_strict_keywords_(self.id_to_str(id));
             }
             _ => ()
         }
@@ -221,9 +237,8 @@ pub impl Parser {
     // signal an error if the current token is a reserved keyword
     fn check_reserved_keywords(&self) {
         match *self.token {
-            token::IDENT(_, false) => {
-                let w = token_to_str(self.reader, &copy *self.token);
-                self.check_reserved_keywords_(&w);
+            token::PATH([id], false) => {
+                self.check_reserved_keywords_(self.id_to_str(id));
             }
             _ => ()
         }
@@ -250,9 +265,9 @@ pub impl Parser {
             );
         } else {
             let mut s: ~str = ~"expected `";
-            s += token_to_str(self.reader, &token::GT);
+            s += self.token_to_str(&token::GT);
             s += ~"`, found `";
-            s += token_to_str(self.reader, &copy *self.token);
+            s += self.this_token_to_str();
             s += ~"`";
             self.fatal(s);
         }

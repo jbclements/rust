@@ -46,7 +46,8 @@ impl proto_parser for parser::Parser {
 
         self.expect(&token::COLON);
         let dir = match copy *self.token {
-            token::IDENT(n, _) => self.interner.get(n),
+            token::IDENT(n, _) => fail!(~"shouldn't be any IDENTS left 2013-03-13T15:30"),
+            token::PATH([id],false) => self.interner.get(id),
             _ => fail!()
         };
         self.bump();

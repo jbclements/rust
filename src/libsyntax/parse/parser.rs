@@ -41,7 +41,7 @@ use ast::{m_imm, m_mutbl, mac_, mac_invoc_tt, matcher, match_nonterminal};
 use ast::{match_seq, match_tok, method, mode, module_ns, mt, MT, mul};
 use ast::{mutability, named_field, neg, node_id, noreturn, not, pat, pat_box};
 use ast::{pat_enum, pat_ident, pat_lit, pat_range, pat_region, pat_struct};
-use ast::{pat_tup, pat_uniq, pat_wild, Path, private};
+use ast::{pat_tup, pat_uniq, pat_wild, private};
 use ast::{rem, required};
 use ast::{ret_style, return_val, self_ty, shl, shr, stmt, stmt_decl};
 use ast::{stmt_expr, stmt_semi, stmt_mac, struct_def, struct_field};
@@ -64,7 +64,7 @@ use codemap::{span,FssNone, BytePos, spanned, respan, mk_sp};
 use codemap;
 use parse::attr::parser_attr;
 use parse::classify;
-use parse::common::{seq_sep_none, token_to_str};
+use parse::common::{seq_sep_none};
 use parse::common::{seq_sep_trailing_disallowed, seq_sep_trailing_allowed};
 use parse::lexer::reader;
 use parse::lexer::TokenAndSpan;
@@ -83,8 +83,8 @@ use parse::obsolete::{ObsoleteLifetimeNotation, ObsoleteConstManagedPointer};
 use parse::obsolete::{ObsoletePurity, ObsoleteStaticMethod};
 use parse::obsolete::{ObsoleteConstItem};
 use parse::prec::{as_prec, token_to_binop};
-use parse::token::{can_begin_expr, is_ident, is_ident_or_path};
-use parse::token::{is_plain_ident, INTERPOLATED, special_idents};
+use parse::token::{can_begin_expr, is_path, is_identpath, is_nonglobal_path};
+use parse::token::{INTERPOLATED, special_idents};
 use parse::token;
 use parse::{new_sub_parser_from_file, next_node_id, ParseSess};
 use opt_vec;
@@ -249,8 +249,11 @@ pub fn Parser(sess: @mut ParseSess,
 pub struct Parser {
     sess: @mut ParseSess,
     cfg: crate_cfg,
+    // the current token:
     token: @mut token::Token,
+    // the span of the current token:
     span: @mut span,
+    // the span of the prior token:
     last_span: @mut span,
     buffer: @mut [TokenAndSpan * 4],
     buffer_start: @mut int,
@@ -488,7 +491,7 @@ pub impl Parser {
             let hi = p.last_span.hi;
             debug!("parse_trait_methods(): trait method signature ends in \
                     `%s`",
-                   token_to_str(p.reader, &copy *p.token));
+                   self.this_token_to_str());
             match *p.token {
               token::SEMI => {
                 p.bump();
@@ -530,7 +533,7 @@ pub impl Parser {
                     p.fatal(
                         fmt!(
                             "expected `;` or `}` but found `%s`",
-                            token_to_str(p.reader, &copy *p.token)
+                            self.this_token_to_str()
                         )
                     );
                 }
@@ -681,8 +684,7 @@ pub impl Parser {
             let result = self.parse_ty_closure(ast::BorrowedSigil, None);
             self.obsolete(*self.last_span, ObsoleteBareFnType);
             result
-        } else if *self.token == token::MOD_SEP
-            || is_ident_or_path(&*self.token) {
+        } else if is_path(&*self.token) {
             // NAMED TYPE
             let path = self.parse_path_with_tps(false);
             ty_path(path, self.get_id())
@@ -707,7 +709,7 @@ pub impl Parser {
                 return self.parse_ty_closure(sigil, Some(lifetime));
             }
 
-            token::IDENT(*) => {
+            token::PATH([rname], false) => {
                 if self.look_ahead(1u) == token::BINOP(token::SLASH) &&
                     self.token_is_closure_keyword(&self.look_ahead(2u))
                 {
@@ -783,10 +785,10 @@ pub impl Parser {
             }
         } else { 0 };
         if offset == 0 {
-            is_plain_ident(&*self.token)
+            is_identpath(&*self.token)
                 && self.look_ahead(1) == token::COLON
         } else {
-            is_plain_ident(&self.look_ahead(offset))
+            is_identpath(&self.look_ahead(offset))
                 && self.look_ahead(offset + 1) == token::COLON
         }
     }
@@ -865,7 +867,10 @@ pub impl Parser {
                 lit_float_unsuffixed(self.id_to_str(s)),
             token::LIT_STR(s) => lit_str(self.id_to_str(s)),
             token::LPAREN => { self.expect(&token::RPAREN); lit_nil },
-            _ => { self.unexpected_last(tok); }
+            _ => {
+                self.fatal(fmt!("expected literal token, got `%s`",
+                               self.token_to_str(tok)));
+            }
         }
     }
 
@@ -888,30 +893,20 @@ pub impl Parser {
     fn parse_path_without_tps(&self)
         -> @ast::Path {
         maybe_whole!(self, nt_path);
-        let lo = self.span.lo;
-        let global = self.eat(&token::MOD_SEP);
-        let mut ids = ~[];
-        loop {
-            // if there's a ::< coming, stop processing
-            // the path.
-            let is_not_last =
-                self.look_ahead(2u) != token::LT
-                && self.look_ahead(1u) == token::MOD_SEP;
-
-            if is_not_last {
-                ids.push(self.parse_ident());
-                self.expect(&token::MOD_SEP);
-            } else {
-                ids.push(self.parse_ident());
-                break;
+        match *self.token {
+            token::PATH(ids,is_global) => {
+                let lo = self.span.lo;
+                let hi = self.span.hi;
+                @ast::Path { span: mk_sp(lo, hi),
+                            global: is_global,
+                            idents: @ids,
+                            rp: None,
+                            types: ~[],
+                            ctxt: @ast::MT}                
             }
+            _ => self.fatal(fmt!("expected path, got `%s`",
+                                self.this_token_to_str()))
         }
-        @ast::Path { span: mk_sp(lo, self.last_span.hi),
-               global: global,
-               idents: @ids,
-               rp: None,
-               types: ~[],
-               ctxt: @ast::MT}
     }
 
     // parse a path optionally with type parameters. If 'colons'
@@ -936,7 +931,7 @@ pub impl Parser {
                 self.bump(); self.bump();
                 self.obsolete(*self.last_span, ObsoleteLifetimeNotation);
                 match *self.token {
-                    token::IDENT(sid, _) => {
+                    token::PATH([sid], false) => {
                         let span = copy self.span;
                         self.bump();
                         Some(@ast::Lifetime {
@@ -990,7 +985,7 @@ pub impl Parser {
             }
 
             // Also accept the (obsolete) syntax `foo/`
-            token::IDENT(*) => {
+            token::PATH([_],false) => {
                 if self.look_ahead(1u) == token::BINOP(token::SLASH) {
                     self.obsolete(*self.last_span, ObsoleteLifetimeNotation);
                     Some(@self.parse_lifetime())
@@ -1030,7 +1025,7 @@ pub impl Parser {
             }
 
             // Also accept the (obsolete) syntax `foo/`
-            token::IDENT(i, _) => {
+            token::PATH([i], false) => {
                 let span = copy self.span;
                 self.bump();
                 self.expect(&token::BINOP(token::SLASH));
@@ -1141,6 +1136,7 @@ pub impl Parser {
     // parse things like parenthesized exprs, funcalls,
     // macros, return, etc.
     fn parse_bottom_expr(&self) -> @expr {
+        debug!("2013-03-15");
         maybe_whole_expr!(self);
 
         let lo = self.span.lo;
@@ -1254,7 +1250,7 @@ pub impl Parser {
                 ex = expr_ret(Some(e));
             } else { ex = expr_ret(None); }
         } else if self.eat_keyword(&~"break") {
-            if is_ident(&*self.token) {
+            if is_identpath(&*self.token) {
                 ex = expr_break(Some(self.parse_ident()));
             } else {
                 ex = expr_break(None);
@@ -1264,8 +1260,7 @@ pub impl Parser {
             let e = self.parse_expr();
             ex = expr_copy(e);
             hi = e.span.hi;
-        } else if *self.token == token::MOD_SEP ||
-                is_ident(&*self.token) && !self.is_keyword(&~"true") &&
+        } else if is_path(&*self.token) && !self.is_keyword(&~"true") &&
                 !self.is_keyword(&~"false") {
             let pth = self.parse_path_with_tps(true);
 
@@ -1360,7 +1355,7 @@ pub impl Parser {
             // expr.f
             if self.eat(&token::DOT) {
                 match *self.token {
-                  token::IDENT(i, _) => {
+                  token::PATH([i], false) => {
                     hi = self.span.hi;
                     self.bump();
                     let (_, tys) = if self.eat(&token::MOD_SEP) {
@@ -1446,10 +1441,99 @@ pub impl Parser {
         }
     }
 
+    // parse a path into a PATH token. The path did not start
+    // with ::. 'id' and 'is_mod_path' represent the pieces
+    // of the initial identifier.
+    fn parse_relative_path(&self,id : ast::ident, followed_by_mod_sep: bool,
+                           lo: BytePos, hi: BytePos)
+        -> ast::token_tree{
+        // FIXME: ids should be fixed.
+        // could be a keyword:
+        if ((! followed_by_mod_sep) && (self.id_is_any_keyword(id))) {
+            // standalone kwd: return as separate path:
+            tt_tok(span{lo:lo,hi:hi,expn_info:None},token::PATH(~[id],false))
+        } else {
+            // start eating path:
+            self.parse_path_remainder(~[id],false,lo,hi)
+        }
+    }
+
+    // parse a path into a PATH token. The path started with ::
+    fn parse_global_path(&self, lo: BytePos) -> ast::token_tree{
+        match *self.token {
+            token::IDENT(id,followed_by_mod_sep) => {
+                if ((! followed_by_mod_sep) && (self.id_is_any_keyword(id))) {
+                    self.fatal(fmt!("found `%s` in ident position",
+                                   self.this_token_to_str()));
+                }
+                let new_hi = self.span.hi;
+                self.bump();
+                self.parse_path_remainder(~[id],true, lo, new_hi)
+            }
+            _ => self.fatal(
+                fmt!("expected identifier after ::, got: %?",
+                     *self.token))
+        }
+    }
+
+    // parse the remainder of a path into a PATH, after seeing
+    // at least one ident.
+    fn parse_path_remainder(&self, mut ids: ~[ast::ident], global: bool, lo: BytePos, mut hi: BytePos)
+        -> ast::token_tree {
+        loop {
+            match *self.token{
+                token::MOD_SEP => {
+                    match self.look_ahead(1u) {
+                        token::LT => {
+                            // this is a type parameter; stop parsing
+                            // before eating the ::
+                            return tt_tok(span{lo:lo,hi:hi,expn_info:None},
+                                          token::PATH(ids,global));
+                        }
+                        token::LBRACE => {
+                            // this is a multi-import; stop parsing
+                            // before eating the ::
+                            return tt_tok(span{lo:lo,hi:hi,expn_info:None},
+                                          token::PATH(ids,global));
+                        }
+                        token::IDENT(id,followed_by_mod_sep) => {
+                            if ((! followed_by_mod_sep) && (self.id_is_any_keyword(id))) {
+                                self.bump();
+                                self.fatal(fmt!("found `%s` in ident position",
+                                                self.this_token_to_str()));
+                            }
+                            self.bump();
+                            hi = self.span.hi;
+                            self.bump();
+                            ids.push(id);
+                            // loop...
+                        }
+                        _ => {
+                            self.fatal(fmt!("expected id, < or { after ::, found: %?",
+                                            self.look_ahead(1u)));
+                        }
+                    }
+                }
+                // end of path
+                _ => {
+                    return tt_tok(span{lo:lo,hi:hi,expn_info:None},
+                                  token::PATH(ids,global));
+                }
+            }
+        }
+    }
+            
+        
     // parse a single token tree from the input.
     fn parse_token_tree(&self) -> token_tree {
         maybe_whole!(deref self, nt_tt);
 
+        fn next_is_ident(p: &Parser) -> bool {
+            match p.look_ahead(1u) {
+                token::IDENT(_,_) => true,
+                _ => false
+            }
+        }
         // this is the fall-through for the 'match' below.
         // invariants: the current token is not a left-delimiter,
         // not an EOF, and not the desired right-delimiter (if
@@ -1463,16 +1547,24 @@ pub impl Parser {
                 p.fatal(
                     fmt!(
                         "incorrect close delimiter: `%s`",
-                        token_to_str(p.reader, &copy *p.token)
+                        p.this_token_to_str()
                     )
                 );
               }
-/*              token::MOD_SEP => {
+              token::MOD_SEP
+                if next_is_ident(p)
+                =>
+                {
+                  let lo = p.span.lo;
                   p.bump();
-                  parse_path(true);
+                  p.parse_global_path(lo)
+              },
               token::IDENT(s,is_mod_name) => {
-                  parse_path(false);
-              }*/
+                  let lo = p.span.lo;
+                  let hi = p.span.hi;
+                  p.bump();
+                  p.parse_relative_path(s,is_mod_name,lo,hi)
+              }
               /* we ought to allow different depths of unquotation */
               token::DOLLAR if *p.quote_depth > 0u => {
                 p.bump();
@@ -1501,11 +1593,6 @@ pub impl Parser {
               }
             }
         }
-/*
-        // collapse idents into a path
-        fn parse_path(starts_with_mod_sep: bool) {
-
-        }*/
 
         // turn the next token into a tt_tok, even if it's a delimiter
         fn parse_any_tt_tok(p: &Parser) -> token_tree{
@@ -1970,12 +2057,11 @@ pub impl Parser {
         // loop headers look like 'loop {' or 'loop unsafe {'
         let is_loop_header =
             *self.token == token::LBRACE
-            || (is_ident(&*self.token)
+            || (is_identpath(&*self.token)
                 && self.look_ahead(1) == token::LBRACE);
         // labeled loop headers look like 'loop foo: {'
         let is_labeled_loop_header =
-            is_ident(&*self.token)
-            && !self.is_any_keyword(&copy *self.token)
+            self.is_any_keyword(&*self.token)
             && self.look_ahead(1) == token::COLON;
 
         if is_loop_header || is_labeled_loop_header {
@@ -1995,7 +2081,7 @@ pub impl Parser {
         } else {
             // This is a 'continue' expression
             let lo = self.span.lo;
-            let ex = if is_ident(&*self.token) {
+            let ex = if is_identpath(&*self.token) {
                 expr_again(Some(self.parse_ident()))
             } else {
                 expr_again(None)
@@ -2010,7 +2096,7 @@ pub impl Parser {
         let lookahead = self.look_ahead(1);
         *self.token == token::LBRACE &&
             (self.token_is_keyword(&~"mut", &lookahead) ||
-             (is_plain_ident(&lookahead) &&
+             (is_identpath(&lookahead) &&
               self.look_ahead(2) == token::COLON))
     }
 
@@ -2155,7 +2241,7 @@ pub impl Parser {
                     self.fatal(
                         fmt!(
                             "expected `}`, found `%s`",
-                            token_to_str(self.reader, &copy *self.token)
+                            self.this_token_to_str()
                         )
                     );
                 }
@@ -2299,7 +2385,7 @@ pub impl Parser {
             pat = ast::pat_vec(before, slice, after);
           }
           tok => {
-            if !is_ident_or_path(&tok)
+            if !is_path(&tok)
                 || self.is_keyword(&~"true")
                 || self.is_keyword(&~"false")
             {
@@ -2329,7 +2415,7 @@ pub impl Parser {
                         cannot_be_enum_or_struct = true
                 }
 
-                if is_plain_ident(&*self.token) && cannot_be_enum_or_struct {
+                if is_path(&*self.token) && cannot_be_enum_or_struct {
                     let name = self.parse_path_without_tps();
                     let sub;
                     if self.eat(&token::AT) {
@@ -2398,7 +2484,7 @@ pub impl Parser {
 
     fn parse_pat_ident(&self, refutable: bool,
                        binding_mode: ast::binding_mode) -> ast::pat_ {
-        if !is_plain_ident(&*self.token) {
+        if !is_nonglobal_path(&*self.token) {
             self.span_fatal(
                 *self.last_span,
                 ~"expected identifier, found path");
@@ -2465,9 +2551,6 @@ pub impl Parser {
         if self.eat_keyword(&~"mut") {
             is_mutbl = struct_mutable;
         }
-        if !is_plain_ident(&*self.token) {
-            self.fatal(~"expected ident");
-        }
         let name = self.parse_ident();
         self.expect(&token::COLON);
         let ty = self.parse_ty(false);
@@ -2494,7 +2577,7 @@ pub impl Parser {
             self.expect_keyword(&~"let");
             let decl = self.parse_let();
             return @spanned(lo, decl.span.hi, stmt_decl(decl, self.get_id()));
-        } else if is_ident(&*self.token)
+        } else if is_identpath(&*self.token)
             && !self.is_any_keyword(&copy *self.token)
             && self.look_ahead(1) == token::NOT {
 
@@ -2665,7 +2748,7 @@ pub impl Parser {
                                             fmt!(
                                                 "expected `;` or `}` after \
                                                 expression but found `%s`",
-                                                token_to_str(self.reader, &t)
+                                                self.token_to_str(&t)
                                             )
                                         );
                                     }
@@ -2761,9 +2844,9 @@ pub impl Parser {
                     }
                     self.bump();
                 }
-                token::IDENT(*) => {
+                token::PATH([_],false) => {
                     let maybe_bound = match *self.token {
-                        token::IDENT(copy sid, _) => {
+                        token::IDENT([copy sid], _) => {
                             match *self.id_to_str(sid) {
                                 ~"send" |
                                 ~"copy" |
@@ -2802,7 +2885,7 @@ pub impl Parser {
                 loop;
             }
 
-            if is_ident_or_path(&*self.token) {
+            if is_path(&*self.token) {
                 self.obsolete(*self.span,
                               ObsoleteTraitBoundSeparator);
             }
@@ -2872,7 +2955,7 @@ pub impl Parser {
 
     fn is_self_ident(&self) -> bool {
         match *self.token {
-          token::IDENT(id, false) if id == special_idents::self_
+          token::PATH([id], false) if id == special_idents::self_
             => true,
           _ => false
         }
@@ -2883,7 +2966,7 @@ pub impl Parser {
             self.fatal(
                 fmt!(
                     "expected `self` but found `%s`",
-                    token_to_str(self.reader, &copy *self.token)
+                    self.this_token_to_str()
                 )
             );
         }
@@ -2978,7 +3061,7 @@ pub impl Parser {
           token::TILDE => {
             maybe_parse_self_ty(sty_uniq, self)
           }
-          token::IDENT(*) if self.is_self_ident() => {
+          token::PATH(*) if self.is_self_ident() => {
             self.bump();
             sty_value
           }
@@ -3007,7 +3090,7 @@ pub impl Parser {
                     self.fatal(
                         fmt!(
                             "expected `,` or `)`, found `%s`",
-                            token_to_str(self.reader, &copy *self.token)
+                            self.this_token_to_str()
                         )
                     );
                 }
@@ -3290,7 +3373,7 @@ pub impl Parser {
                 fmt!(
                     "expected `{`, `(`, or `;` after struct name \
                     but found `%s`",
-                    token_to_str(self.reader, &copy *self.token)
+                    self.this_token_to_str()
                 )
             );
         }
@@ -3340,7 +3423,7 @@ pub impl Parser {
                     copy *self.span,
                     fmt!(
                         "expected `;`, `,`, or '}' but found `%s`",
-                        token_to_str(self.reader, &copy *self.token)
+                        self.this_token_to_str()
                     )
                 );
             }
@@ -3442,7 +3525,7 @@ pub impl Parser {
                 self.fatal(
                     fmt!(
                         "expected item but found `%s`",
-                        token_to_str(self.reader, &copy *self.token)
+                        self.this_token_to_str()
                     )
                 );
               }
@@ -3711,20 +3794,20 @@ pub impl Parser {
                 copy *self.span,
                 fmt!(
                     "expected `{` or `mod` but found `%s`",
-                    token_to_str(self.reader, &copy *self.token)
+                    self.this_token_to_str()
                 )
             );
         }
 
         let (sort, ident) = match *self.token {
-            token::IDENT(*) => (ast::named, self.parse_ident()),
+            token::PATH([id],false) => (ast::named, self.parse_ident()),
             _ => {
                 if must_be_named_mod {
                     self.span_fatal(
                         copy *self.span,
                         fmt!(
                             "expected foreign module name but found `%s`",
-                            token_to_str(self.reader, &copy *self.token)
+                            self.this_token_to_str()
                         )
                     );
                 }
@@ -4139,7 +4222,7 @@ pub impl Parser {
         }
         if macros_allowed && !self.is_any_keyword(&copy *self.token)
                 && self.look_ahead(1) == token::NOT
-                && (is_plain_ident(&self.look_ahead(2))
+                && (is_identpath(&self.look_ahead(2))
                     || self.look_ahead(2) == token::LPAREN
                     || self.look_ahead(2) == token::LBRACE) {
             // MACRO INVOCATION ITEM
@@ -4154,7 +4237,7 @@ pub impl Parser {
             // a 'special' identifier (like what `macro_rules!` uses)
             // is optional. We should eventually unify invoc syntax
             // and remove this.
-            let id = if is_plain_ident(&*self.token) {
+            let id = if is_identpath(&*self.token) {
                 self.parse_ident()
             } else {
                 token::special_idents::invalid // no special identifier
@@ -4219,87 +4302,87 @@ pub impl Parser {
             namespace = type_value_ns;
         }
 
-        let first_ident = self.parse_ident();
-        let mut path = ~[first_ident];
-        debug!("parsed view_path: %s", *self.id_to_str(first_ident));
         match *self.token {
-          token::EQ => {
-            // x = foo::bar
-            self.bump();
-            path = ~[self.parse_ident()];
-            while *self.token == token::MOD_SEP {
+            token::PATH(ids,false) => {
                 self.bump();
-                let id = self.parse_ident();
-                path.push(id);
-            }
-              let path = @ast::Path { span: mk_sp(lo, self.span.hi),
-                                     global: false,
-                                     idents: @path,
-                                     rp: None,
-                                     types: ~[],
-                                     ctxt: @ast::MT};
-            return @spanned(lo, self.span.hi,
-                         view_path_simple(first_ident, path, namespace,
-                                          self.get_id()));
-          }
-
-          token::MOD_SEP => {
-            // foo::bar or foo::{a,b,c} or foo::*
-            while *self.token == token::MOD_SEP {
-                self.bump();
-
                 match *self.token {
-                  token::IDENT(i, _) => {
-                    self.bump();
-                    path.push(i);
-                  }
-
-                  // foo::bar::{a,b,c}
-                  token::LBRACE => {
-                    let idents = self.parse_unspanned_seq(
-                        &token::LBRACE,
-                        &token::RBRACE,
-                        seq_sep_trailing_allowed(token::COMMA),
-                        |p| p.parse_path_list_ident()
-                    );
-                    let path = @ast::Path { span: mk_sp(lo, self.span.hi),
-                                            global: false,
-                                            idents: @path,
-                                            rp: None,
-                                            types: ~[],
-                                            ctxt: @ast::MT};
-                    return @spanned(lo, self.span.hi,
-                                 view_path_list(path, idents, self.get_id()));
-                  }
-
-                  // foo::bar::*
-                  token::BINOP(token::STAR) => {
-                    self.bump();
-                    let path = @ast::Path { span: mk_sp(lo, self.span.hi),
-                                           global: false,
-                                           idents: @path,
-                                           rp: None,
-                                           types: ~[],
-                                           ctxt: @ast::MT};
-                    return @spanned(lo, self.span.hi,
-                                    view_path_glob(path, self.get_id()));
-                  }
-
-                  _ => break
+                    // quux = foo::bar::baz
+                    token::EQ if ids.len() == 1 => {
+                        self.bump();
+                        match *self.token {
+                            token::PATH(rhs_ids,false) => {
+                                // should lo go all the way back here?
+                                // copying old behavior...
+                                let path = @ast::Path {span: mk_sp(lo, self.span.hi),
+                                                       global: false,
+                                                       idents: @rhs_ids,
+                                                       rp: None,
+                                                       types: ~[],
+                                                       ctxt: @ast::MT};
+                                @spanned(lo, self.span.hi,
+                                         view_path_simple(ids[0],path,namespace,
+                                                          self.get_id()))
+                            }
+                            _ => self.fatal(fmt!("expected path, got `%s`",
+                                                self.this_token_to_str()))
+                        }
+                    }
+                    // foo::bar or foo::{a,b,c} or foo::*
+                    token::MOD_SEP => {
+                        self.bump();
+                        match *self.token {
+                            // foo::bar::{a,b,c}
+                            token::LBRACE => {
+                                let idents = self.parse_unspanned_seq(
+                                    &token::LBRACE,
+                                    &token::RBRACE,
+                                    seq_sep_trailing_allowed(token::COMMA),
+                                    |p| p.parse_path_list_ident()
+                                );
+                                // self.span.hi is going to be too far to the right, isn't it?
+                                // RIGHT HERE
+                                let path = @ast::Path { span: mk_sp(lo, self.span.hi),
+                                                       global: false,
+                                                       idents: @ids,
+                                                       rp: None,
+                                                       types: ~[],
+                                                       ctxt: @ast::MT};
+                                @spanned(lo, self.span.hi,
+                                         view_path_list(path, idents, self.get_id()))
+                            }
+                            // foo::bar::*
+                            token::BINOP(token::STAR) => {
+                                self.bump();
+                                let path = @ast::Path { span: mk_sp(lo, self.span.hi),
+                                                       global: false,
+                                                       idents: @ids,
+                                                       rp: None,
+                                                       types: ~[],
+                                                       ctxt: @ast::MT};
+                                @spanned(lo, self.span.hi,
+                                         view_path_glob(path, self.get_id()))
+                            }
+                            _ => self.fatal(fmt!("expected '{' or '*' in view path, got `%s`",
+                                                self.this_token_to_str()))
+                        }
+                    }
+                    // foo:bar
+                    _ => {
+                        let last_ident = *ids.last();
+                        let path = @ast::Path { span: mk_sp(lo, self.span.hi),
+                                               global: false,
+                                               idents: @ids,
+                                               rp: None,
+                                               types: ~[],
+                                               ctxt: @ast::MT};
+                        @spanned(lo, self.span.hi,
+                                 view_path_simple(last_ident, path, namespace, self.get_id()))
+                    }
                 }
             }
-          }
-          _ => ()
+            _ => self.fatal(fmt!("expected (non-global) path, got: `%s`",
+                                self.this_token_to_str()))
         }
-        let last = path[vec::len(path) - 1u];
-        let path = @ast::Path { span: mk_sp(lo, self.span.hi),
-                                global: false,
-                                idents: @path,
-                                rp: None,
-                                types: ~[],
-                                ctxt: @ast::MT};
-        return @spanned(lo, self.span.hi,
-                     view_path_simple(last, path, namespace, self.get_id()));
     }
 
     fn parse_view_paths(&self) -> ~[@view_path] {
