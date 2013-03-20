@@ -57,10 +57,8 @@ pub fn add_new_extension(cx: @ext_ctxt,
     // Parse the macro_rules! invocation (`none` is for no interpolations):
     let arg_reader = new_tt_reader(copy cx.parse_sess().span_diagnostic,
                                    cx.parse_sess().interner, None, copy arg);
-    let argument_map = parse_or_else(cx.parse_sess(),
-                                     cx.cfg(),
-                                     arg_reader as @reader,
-                                     argument_gram);
+    let argument_map = parse_or_else(cx.parse_sess(), cx.cfg(),
+                                     arg_reader, argument_gram);
 
     // Extract the arguments:
     let lhses = match argument_map.get(&lhs_nm) {
@@ -102,8 +100,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
                     s_d,
                     itr,
                     None,
-                    vec::from_slice(arg)
-                ) as @reader;
+                    vec::from_slice(arg));
                 match parse(cx.parse_sess(), cx.cfg(), arg_rdr, (*mtcs)) {
                   success(named_matches) => {
                     let rhs = match rhses[i] {

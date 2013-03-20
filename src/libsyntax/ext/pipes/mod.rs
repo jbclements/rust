@@ -47,6 +47,7 @@ use ast;
 use codemap::span;
 use ext::base;
 use ext::base::ext_ctxt;
+use ext::tt::transcribe::dup_tt_reader;
 use ext::pipes::parse_proto::proto_parser;
 use ext::pipes::pipec::gen_init;
 use ext::pipes::proto::{visit, protocol};
@@ -68,11 +69,8 @@ pub fn expand_proto(cx: @ext_ctxt, _sp: span, id: ast::ident,
     let sess = cx.parse_sess();
     let cfg = cx.cfg();
     let tt_rdr = new_tt_reader(copy cx.parse_sess().span_diagnostic,
-                               cx.parse_sess().interner,
-                               None,
-                               copy tt);
-    let rdr = tt_rdr as @reader;
-    let rust_parser = Parser(sess, cfg, rdr.dup());
+                               cx.parse_sess().interner, None, copy tt);
+    let rust_parser = Parser(sess, cfg, dup_tt_reader(tt_rdr) as @reader);
 
     let mut proto = rust_parser.parse_proto(cx.str_of(id));
 

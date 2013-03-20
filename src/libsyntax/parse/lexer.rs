@@ -34,7 +34,7 @@ pub trait reader {
     fn span_diag(@mut self) -> @span_handler;
     fn interner(@mut self) -> @token::ident_interner;
     fn peek(@mut self) -> TokenAndSpan;
-    fn dup(@mut self) -> @reader;
+    //fn dup(@mut self) -> @reader;
 }
 
 #[deriving(Eq)]
@@ -130,7 +130,8 @@ impl reader for StringReader {
             sp: copy self.peek_span,
         }
     }
-    fn dup(@mut self) -> @reader { dup_string_reader(self) as @reader }
+    // this would mess up the filemap something fierce....
+    //fn dup(@mut self) -> @reader { dup_string_reader(self) as @reader }
 }
 
 impl reader for TtReader {
@@ -147,7 +148,6 @@ impl reader for TtReader {
             sp: copy self.cur_span,
         }
     }
-    fn dup(@mut self) -> @reader { dup_tt_reader(self) as @reader }
 }
 
 // EFFECT: advance peek_tok and peek_span to refer to the next token.

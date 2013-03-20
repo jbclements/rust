@@ -18,6 +18,8 @@ use parse::ParseSess;
 use parse::parser::Parser;
 use parse::token::{Token, EOF, to_str, nonterminal};
 use parse::token;
+use parse::lexer::reader;
+use ext::tt::transcribe::{TtReader,dup_tt_reader};
 
 use core::option::{Option, Some, None};
 use core::str;
@@ -224,7 +226,7 @@ pub enum parse_result {
 pub fn parse_or_else(
     sess: @mut ParseSess,
     +cfg: ast::crate_cfg,
-    rdr: @reader,
+    rdr: @mut TtReader,
     ms: ~[matcher]
 ) -> HashMap<ident, @named_match> {
     match parse(sess, cfg, rdr, ms) {
@@ -241,6 +243,7 @@ pub fn parse(
     ms: ~[matcher]
 ) -> parse_result {
     let mut cur_eis = ~[];
+    let rdr = tt_rdr as reader; 
     cur_eis.push(initial_matcher_pos(copy ms, None, rdr.peek().sp.lo));
 
     loop {
@@ -391,7 +394,9 @@ pub fn parse(
                 }
                 rdr.next_token();
             } else /* bb_eis.len() == 1 */ {
-                let rust_parser = Parser(sess, copy cfg, rdr.dup());
+                let rust_parser = Parser(sess, copy cfg,
+                                         (dup_tt_reader(tt_rdr)
+                                          as reader));
 
                 let mut ei = bb_eis.pop();
                 match ei.elts[ei.idx].node {
