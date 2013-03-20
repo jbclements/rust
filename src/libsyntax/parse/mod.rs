@@ -13,7 +13,7 @@
 
 use ast::node_id;
 use ast;
-use codemap::{span, CodeMap, FileMap, CharPos, BytePos};
+use codemap::{span, CodeMap, FileMap, CharPos, BytePos, FileSubstr};
 use codemap;
 use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
 use parse::attr::parser_attr;
@@ -87,11 +87,9 @@ pub fn parse_crate_from_file(
     cfg: ast::crate_cfg,
     sess: @mut ParseSess
 ) -> @ast::crate {
-    new_parser_from_file(sess, /*bad*/ copy cfg, input).parse_crate_mod(/*bad*/ copy cfg)
+    new_parser_from_file(sess, /*bad*/ copy cfg, input).parse_crate_mod()
     // why is there no p.abort_if_errors here?
 }
-
-
 
 pub fn parse_crate_from_source_str(
     name: ~str,
@@ -103,10 +101,9 @@ pub fn parse_crate_from_source_str(
         sess,
         /*bad*/ copy cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
-    maybe_aborted(p.parse_crate_mod(/*bad*/ copy cfg),p2)
+    maybe_aborted(p.parse_crate_mod(),p)
 }
 
 pub fn parse_expr_from_source_str(
@@ -119,13 +116,11 @@ pub fn parse_expr_from_source_str(
         sess,
         cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
     maybe_aborted(p.parse_expr(), p)
 }
 
-// can't work as is
 pub fn parse_item_from_source_str(
     name: ~str,
     source: @~str,
@@ -137,7 +132,6 @@ pub fn parse_item_from_source_str(
         sess,
         cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
     maybe_aborted(p.parse_item(attrs),p)
@@ -170,7 +164,6 @@ pub fn parse_stmt_from_source_str(
         sess,
         cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
     maybe_aborted(p.parse_stmt(attrs),p)
@@ -186,10 +179,10 @@ pub fn parse_tts_from_source_str(
         sess,
         cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
     *p.quote_depth += 1u;
+    // right now this is re-creating the token trees from ... token trees.
     maybe_aborted(p.parse_all_token_trees(),p)
 }
 
@@ -205,7 +198,7 @@ pub fn parse_from_source_str<T>(
     +cfg: ast::crate_cfg,
     sess: @mut ParseSess
 ) -> T {
-    let p = new_parser_from_source_str(
+    let p = new_parser_from_source_substr(
         sess,
         cfg,
         /*bad*/ copy name,
@@ -228,41 +221,28 @@ pub fn next_node_id(sess: @mut ParseSess) -> node_id {
     return rv;
 }
 
+
+
+
+
+// Create a new parser from a source string
 pub fn new_parser_from_source_str(sess: @mut ParseSess,
+                                  +cfg: ast::crate_cfg,
+                                  +name: ~str,
+                                  source: @~str)
+                               -> Parser {
+    filemap_to_parser(sess,string_to_filemap(sess,source,name),cfg)
+}
+
+// Create a new parser from a source string where the origin
+// is specified as a substring of another file.
+pub fn new_parser_from_source_substr(sess: @mut ParseSess,
                                   +cfg: ast::crate_cfg,
                                   +name: ~str,
                                   +ss: codemap::FileSubstr,
                                   source: @~str)
                                -> Parser {
-    let filemap = sess.cm.new_filemap_w_substr(name, ss, source);
-    let srdr = lexer::new_string_reader(
-        copy sess.span_diagnostic,
-        filemap,
-        sess.interner
-    );
-    let p1 = Parser(sess, cfg, srdr as @reader);
-    let tts = p1.parse_token_trees();
-    new_parser_from_tts(sess,cfg,tts)
-}
-
-/// Read the entire source file, return a parser
-/// that draws from that string
-pub fn new_parser_result_from_file(
-    sess: @mut ParseSess,
-    +cfg: ast::crate_cfg,
-    path: &Path
-) -> Result<Parser, ~str> {
-    match io::read_whole_file_str(path) {
-        Ok(src) => {
-            let filemap = sess.cm.new_filemap(path.to_str(), @src);
-            let srdr = lexer::new_string_reader(copy sess.span_diagnostic,
-                                                filemap,
-                                                sess.interner);
-            Ok(Parser(sess, cfg, srdr as @reader))
-
-        }
-        Err(e) => Err(e)
-    }
+    filemap_to_parser(sess,substring_to_filemap(sess,source,name,ss),cfg)
 }
 
 /// Create a new parser, handling errors as appropriate
@@ -272,46 +252,92 @@ pub fn new_parser_from_file(
     +cfg: ast::crate_cfg,
     path: &Path
 ) -> Parser {
-    let p1 = 
-        match new_parser_result_from_file(sess, cfg, path) {
-            Ok(parser) => parser,
-            Err(e) => {
-                sess.span_diagnostic.handler().fatal(e)
-            }
-        };
-    let tts = p1.parse_token_trees();
-    new_parser_from_tts(sess,cfg,tts)
+    filemap_to_parser(sess,file_to_filemap(sess,path,None),cfg)
 }
 
-/// Create a new parser based on a span from an existing parser. Handles
-/// error messages correctly when the file does not exist.
+/// Given a session, a crate config, a path, and a span, add
+/// the file at the given path to the codemap, and return a parser.
+/// On an error, use the given span as the source of the problem.
 pub fn new_sub_parser_from_file(
     sess: @mut ParseSess,
     +cfg: ast::crate_cfg,
     path: &Path,
     sp: span
 ) -> Parser {
-    match new_parser_result_from_file(sess, cfg, path) {
-        Ok(parser) => parser,
+    filemap_to_parser(sess,file_to_filemap(sess,path,Some(sp)),cfg)
+}
+
+/// Given a filemap and config, return a parser
+pub fn filemap_to_parser(sess: @mut ParseSess,
+                         filemap: @FileMap,
+                         cfg: ast::crate_cfg) -> Parser {
+    tts_to_parser(sess,filemap_to_tts(sess,filemap),cfg)
+}
+
+// must preserve old name for now, because quote! from the *existing*
+// compiler expands into it
+pub fn new_parser_from_tts(sess: @mut ParseSess,
+                     cfg: ast::crate_cfg,
+                     tts: ~[ast::token_tree]) -> Parser {
+    tts_to_parser(sess,tts,cfg)
+}
+
+
+// base abstractions
+
+/// Given a session and a path and an optional span (for error reporting),
+/// add the path to the session's codemap and return the new filemap.
+pub fn file_to_filemap(sess: @mut ParseSess, path: &Path, spanopt: Option<span>)
+    -> @FileMap {
+    match io::read_whole_file_str(path) {
+        Ok(src) => string_to_filemap(sess, @src, path.to_str()),
         Err(e) => {
-            sess.span_diagnostic.span_fatal(sp, e)
+            match spanopt {
+                Some(span) => sess.span_diagnostic.span_fatal(span, e),
+                None => sess.span_diagnostic.handler().fatal(e)
+            }
         }
     }
 }
 
-// open a parser that reads from a set of token trees.
-pub fn new_parser_from_tts(
-    sess: @mut ParseSess,
-    +cfg: ast::crate_cfg,
-    +tts: ~[ast::token_tree]
-) -> Parser {
+// given a session and a string, add the string to
+// the session's codemap and return the new filemap
+pub fn string_to_filemap(sess: @mut ParseSess, source: @~str, path: ~str)
+    -> @FileMap {
+    sess.cm.new_filemap(path, source)
+}
+
+// given a session and a string and a path and a FileSubStr, add
+// the string to the CodeMap and return the new FileMap
+pub fn substring_to_filemap(sess: @mut ParseSess, source: @~str, path: ~str,
+                           filesubstr: FileSubstr) -> @FileMap {
+    sess.cm.new_filemap_w_substr(path,filesubstr,source)
+}
+
+// given a filemap, produce a sequence of token-trees
+pub fn filemap_to_tts(sess: @mut ParseSess, filemap: @FileMap)
+    -> ~[ast::token_tree] {
+    // it appears to me that the cfg doesn't matter here... indeed,
+    // parsing tt's probably shouldn't require a parser at all.
+    let cfg = ~[];
+    let srdr = lexer::new_string_reader(copy sess.span_diagnostic,
+                                        filemap,
+                                        sess.interner);
+    let p1 = Parser(sess, cfg, srdr as @reader);
+    p1.parse_all_token_trees()
+}
+
+// given tts and cfg, produce a parser
+pub fn tts_to_parser(sess: @mut ParseSess,
+                     tts: ~[ast::token_tree],
+                     cfg: ast::crate_cfg) -> Parser {
     let trdr = lexer::new_tt_reader(
         copy sess.span_diagnostic,
         sess.interner,
         None,
         tts
     );
-    Parser(sess, cfg, trdr as @reader)
+    Parser(sess, cfg, trdr as @reader)    
 }
 
 // abort if necessary
@@ -380,33 +406,21 @@ mod test {
 
     // map a string to tts, using a made-up filename: return both the token_trees
     // and the ParseSess
-    fn string_to_tts (source_str : @~str) -> (~[ast::token_tree],@mut ParseSess) {
+    fn string_to_tts_t (source_str : @~str) -> (~[ast::token_tree],@mut ParseSess) {
         let ps = mk_testing_parse_sess();
-        (parse_tts_from_source_str(
-            ~"bogofile",
-            source_str,
-            ~[],
-            ps),
-         ps)        
+        (filemap_to_tts(ps,string_to_filemap(ps,source_str,~"bogofile")),ps)
     }
 
     // map a string to tts, return the tt without its parsesess
     fn string_to_tts_only(source_str : @~str) -> ~[ast::token_tree] {
-        let (tts,ps) = string_to_tts(source_str);
-        tts        
-    }
-
-    // map tts to a parser
-    fn tts_to_parser(tts_and_ps : (~[ast::token_tree],@mut ParseSess)) -> @Parser {
-        let (tts,ps) = tts_and_ps;
-        @new_parser_from_tts(ps,~[],tts)
+        let (tts,ps) = string_to_tts_t(source_str);
+        tts
     }
 
     // map string to parser (via tts)
-    fn string_to_parser(source_str: @~str) -> @Parser {
+    fn string_to_parser(source_str: @~str) -> Parser {
         let ps = mk_testing_parse_sess();
-        new_parser_from_source_str()
-        tts_to_parser(string_to_tts(source_str))
+        new_parser_from_source_str(ps,~[],~"bogofile",source_str)
     }
 
     #[test] fn to_json_str<E : Encodable<std::json::Encoder>>(val: @E) -> ~str {
@@ -416,7 +430,7 @@ mod test {
     }
 
     fn string_to_crate (source_str : @~str) -> @ast::crate {
-        string_to_parser(source_str).parse_crate_mod(~[])
+        string_to_parser(source_str).parse_crate_mod()
     }
 
     fn string_to_expr (source_str : @~str) -> @ast::expr {
@@ -603,7 +617,7 @@ mod test {
     
 
     #[test] fn string_to_tts_1 () {
-        let (tts,ps) = string_to_tts(@~"fn a (b : int) { b; }");
+        let (tts,ps) = string_to_tts_t(@~"fn a (b : int) { b; }");
         assert_eq!(to_json_str(@tts),
                    ~"[[\"tt_tok\",[null,[\"PATH\",[[\"fn\"],false]]]],\
                      [\"tt_tok\",[null,[\"PATH\",[[\"a\"],false]]]],\

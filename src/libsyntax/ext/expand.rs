@@ -20,7 +20,7 @@ use codemap::{span, CallInfo, ExpandedFrom, NameAndSpan, spanned};
 use ext::base::*;
 use fold::*;
 use parse;
-use parse::{parser, parse_item_from_source_str, new_parser_from_tts};
+use parse::{parser, parse_item_from_source_str};
 
 use core::option;
 use core::vec;

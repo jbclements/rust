@@ -43,9 +43,9 @@ fn next_state(s: State) -> Option<State> {
 
 pub fn expand_asm(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
                -> base::MacResult {
-    let p = parse::new_parser_from_tts(cx.parse_sess(),
-                                       cx.cfg(),
-                                       vec::from_slice(tts));
+    let p = parse::tts_to_parser(cx.parse_sess(),
+                                 vec::from_slice(tts),
+                                 cx.cfg());
 
     let mut asm = ~"";
     let mut outputs = ~[];

@@ -381,9 +381,9 @@ pub fn get_single_str_from_tts(cx: @ext_ctxt,
 
 pub fn get_exprs_from_tts(cx: @ext_ctxt, tts: &[ast::token_tree])
                        -> ~[@ast::expr] {
-    let p = parse::new_parser_from_tts(cx.parse_sess(),
-                                       cx.cfg(),
-                                       vec::from_slice(tts));
+    let p = parse::tts_to_parser(cx.parse_sess(),
+                                 vec::from_slice(tts),
+                                 cx.cfg());
     let mut es = ~[];
     while *p.token != token::EOF {
         if es.len() != 0 {

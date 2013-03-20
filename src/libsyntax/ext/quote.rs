@@ -532,10 +532,10 @@ fn expand_tts(cx: @ext_ctxt,
     // it has to do with transition away from supporting old-style macros, so
     // try removing it when enough of them are gone.
 
-    let p = parse::new_parser_from_tts(
+    let p = parse::tts_to_parser(
         cx.parse_sess(),
-        cx.cfg(),
-        vec::from_slice(tts)
+        vec::from_slice(tts),
+        cx.cfg()
     );
     *p.quote_depth += 1u;
     let tts = p.parse_all_token_trees();
@@ -617,10 +617,10 @@ fn expand_parse_call(cx: @ext_ctxt,
                                             ~"ext",
                                             ~"quote",
                                             ~"rt",
-                                            ~"new_parser_from_tts"]),
+                                            ~"tts_to_parser"]),
                               ~[parse_sess_call(),
-                                cfg_call(),
-                                tts_expr]);
+                                tts_expr,
+                                cfg_call()]);
 
     build::mk_call_(cx, sp,
                     build::mk_access_(cx, sp, new_parser_call,

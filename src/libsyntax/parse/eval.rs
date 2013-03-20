@@ -72,9 +72,8 @@ fn parse_companion_mod(cx: ctx, prefix: &Path, suffix: &Option<Path>)
     if file_exists(modpath) {
         debug!("found companion mod");
         // XXX: Using a dummy span, but this code will go away soon
-        let p0 = new_sub_parser_from_file(cx.sess, cx.cfg,
-                                          modpath,
-                                          codemap::dummy_sp());
+        let p0 = new_parser_from_file(cx.sess, cx.cfg,
+                                      modpath);
         let (inner, next) = p0.parse_inner_attrs_and_next();
         let m0 = p0.parse_mod_items(token::EOF, next);
         return (m0.view_items, m0.items, inner);
