@@ -147,7 +147,6 @@ pub fn parse_meta_from_source_str(
         sess,
         cfg,
         /*bad*/ copy name,
-        codemap::FssNone,
         source
     );
     maybe_aborted(p.parse_meta_item(),p)
@@ -359,6 +358,7 @@ mod test {
     use core::option::None;
     use core::int;
     use core::num::NumCast;
+    use core::path::Path;
     use codemap::{dummy_sp, CodeMap, span, BytePos, spanned};
     use opt_vec;
     use ast;
@@ -564,6 +564,10 @@ mod test {
 
     }
 
+    fn parser_done(p: Parser){
+        assert_eq!(*p.token,token::EOF);
+    }
+    
     #[test] fn parse_ident_pat () {
         let parser = string_to_parser(@~"b");
         assert_eq!(parser.parse_pat(false),
@@ -579,7 +583,7 @@ mod test {
                                                   None // no idea
                                                  ),
                              span: sp(0,1)});
-        assert_eq!(*parser.token,token::EOF);
+        parser_done(parser);
     }
     
     #[test] fn parse_arg () {
@@ -707,10 +711,26 @@ mod test {
     }
 
 
-    #[test] fn parse_exprs () {
+    #[test] fn parse_exprs() {
         // just make sure that they parse....
         string_to_expr(@~"3 + 4");
         string_to_expr(@~"a::z.froob(b,@(987+3))");
+    }
+
+    #[test] fn can_parse_crate() {
+        // NOTE: this test is specific to my (JBC's) file system for now...
+        // parse the syntax crate, write it to a tmp file.
+        let crate = parse_crate_from_file(&Path("/Users/clements/tryrust/src/libsyntax/syntax.rc"),
+                                          ~[],
+                                          mk_testing_parse_sess());
+        // write it to a temp file....
+        
+    }
+
+    #[test] fn can_parse_type_param() {
+        let p = string_to_parser(@~"T:to_bytes::IterBytes");
+        p.parse_ty_param();
+        parser_done(p);
     }
 
     

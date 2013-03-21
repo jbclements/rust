@@ -709,7 +709,7 @@ pub impl Parser {
                 return self.parse_ty_closure(sigil, Some(lifetime));
             }
 
-            token::PATH([rname], false) => {
+            token::PATH([_], false) => {
                 if self.look_ahead(1u) == token::BINOP(token::SLASH) &&
                     self.token_is_closure_keyword(&self.look_ahead(2u))
                 {
@@ -1009,6 +1009,7 @@ pub impl Parser {
         }
     }
 
+    // matches lifetime = ( LIFETIME ) | ( IDENT / )
     fn parse_lifetime(&self) -> ast::Lifetime {
         /*!
          *
@@ -1045,6 +1046,9 @@ pub impl Parser {
         }
     }
 
+    // matches lifetimes = ( lifetime ) | ( lifetime , lifetimes )
+    // actually, it matches the empty one too, but putting that in there
+    // messes up the grammar....
     fn parse_lifetimes(&self) -> OptVec<ast::Lifetime> {
         /*!
          *
@@ -1070,7 +1074,8 @@ pub impl Parser {
                 token::GT => { return res; }
                 token::BINOP(token::SHR) => { return res; }
                 _ => {
-                    self.fatal(~"expected `,` or `>` after lifetime name");
+                    self.fatal(fmt!("expected `,` or `>` after lifetime name, got: %?",
+                                    *self.token));
                 }
             }
         }
@@ -1482,38 +1487,18 @@ pub impl Parser {
     fn parse_path_remainder(&self, mut ids: ~[ast::ident], global: bool, lo: BytePos, mut hi: BytePos)
         -> ast::token_tree {
         loop {
-            match *self.token{
-                token::MOD_SEP => {
-                    match self.look_ahead(1u) {
-                        token::LT => {
-                            // this is a type parameter; stop parsing
-                            // before eating the ::
-                            return tt_tok(span{lo:lo,hi:hi,expn_info:None},
-                                          token::PATH(ids,global));
-                        }
-                        token::LBRACE => {
-                            // this is a multi-import; stop parsing
-                            // before eating the ::
-                            return tt_tok(span{lo:lo,hi:hi,expn_info:None},
-                                          token::PATH(ids,global));
-                        }
-                        token::IDENT(id,followed_by_mod_sep) => {
-                            if ((! followed_by_mod_sep) && (self.id_is_any_keyword(id))) {
-                                self.bump();
-                                self.fatal(fmt!("found `%s` in ident position",
-                                                self.this_token_to_str()));
-                            }
-                            self.bump();
-                            hi = self.span.hi;
-                            self.bump();
-                            ids.push(id);
-                            // loop...
-                        }
-                        _ => {
-                            self.fatal(fmt!("expected id, < or { after ::, found: %?",
-                                            self.look_ahead(1u)));
-                        }
+            match (*self.token,self.look_ahead(1u)) {
+                (token::MOD_SEP,token::IDENT(id,followed_by_mod_sep)) => {
+                    if ((! followed_by_mod_sep) && (self.id_is_any_keyword(id))) {
+                        self.bump();
+                        self.fatal(fmt!("found `%s` in ident position",
+                                        self.this_token_to_str()));
                     }
+                    self.bump();
+                    hi = self.span.hi;
+                    self.bump();
+                    ids.push(id);
+                    // loop...
                 }
                 // end of path
                 _ => {
@@ -1526,6 +1511,9 @@ pub impl Parser {
             
         
     // parse a single token tree from the input.
+    // these functions should be split out of the parser entirely, I claim.
+    // NOTE: this is going to have to handle *re*parsing paths, to correctly
+    // deal with the output of macros. We should see that bug later today :)
     fn parse_token_tree(&self) -> token_tree {
         maybe_whole!(deref self, nt_tt);
 
@@ -2062,7 +2050,8 @@ pub impl Parser {
                 && self.look_ahead(1) == token::LBRACE);
         // labeled loop headers look like 'loop foo: {'
         let is_labeled_loop_header =
-            self.is_any_keyword(&*self.token)
+            is_identpath(&*self.token)
+            && !self.is_any_keyword(&*self.token)
             && self.look_ahead(1) == token::COLON;
 
         if is_loop_header || is_labeled_loop_header {
@@ -2826,6 +2815,11 @@ pub impl Parser {
         if self.eat_keyword(&~"once") { ast::Once } else { ast::Many }
     }
 
+    // matches optbounds = ( ( : ( boundseq )? )? )
+    // where   boundseq  = ( bound + boundseq ) | bound
+    // and     bound     = ( 'static ) | ty
+    // you might want to insist on the boundseq having seen the colon, but
+    // that's not currently in place.
     fn parse_optional_ty_param_bounds(&self) -> @OptVec<TyParamBound> {
         if !self.eat(&token::COLON) {
             return @opt_vec::Empty;
@@ -2844,47 +2838,42 @@ pub impl Parser {
                     }
                     self.bump();
                 }
-                token::PATH([_],false) => {
-                    let maybe_bound = match *self.token {
-                        token::IDENT([copy sid], _) => {
-                            match *self.id_to_str(sid) {
-                                ~"send" |
-                                ~"copy" |
-                                ~"const" |
-                                ~"owned" => {
-                                    self.obsolete(
-                                        *self.span,
-                                        ObsoleteLowerCaseKindBounds);
+                token::PATH([copy sid], false) => {
+                    match *self.id_to_str(sid) {
+                        ~"send" |
+                        ~"copy" |
+                        ~"const" |
+                        ~"owned" => {
+                            self.obsolete(
+                                *self.span,
+                                ObsoleteLowerCaseKindBounds);
 
-                                    // Bogus value, but doesn't matter, since
-                                    // is an error
-                                    Some(TraitTyParamBound(
-                                        self.mk_ty_path(sid)))
-                                }
-                                _ => None
-                            }
-                        }
-                        _ => fail!()
-                    };
-
-                    match maybe_bound {
-                        Some(bound) => {
+                            // Bogus value, but doesn't matter, since
+                            // is an error
                             self.bump();
-                            result.push(bound);
+                            result.push(TraitTyParamBound(
+                                self.mk_ty_path(sid)));
                         }
-                        None => {
+                        _ => {
                             let ty = self.parse_ty(false);
                             result.push(TraitTyParamBound(ty));
                         }
                     }
                 }
-                _ => break,
+                token::PATH(_,_) => {
+                    let ty = self.parse_ty(false);
+                    result.push(TraitTyParamBound(ty));
+                }
+                _ => self.fatal(fmt!("expected a path or 'static, found %?",
+                                     *self.token))
             }
 
             if self.eat(&token::BINOP(token::PLUS)) {
                 loop;
             }
 
+            // I believe it would make sense to signal this error
+            // on & as well, but it will be an error anyway...
             if is_path(&*self.token) {
                 self.obsolete(*self.span,
                               ObsoleteTraitBoundSeparator);
@@ -2894,6 +2883,7 @@ pub impl Parser {
         return @result;
     }
 
+    // matches typaram = IDENT optbounds
     fn parse_ty_param(&self) -> TyParam {
         let ident = self.parse_ident();
         let bounds = self.parse_optional_ty_param_bounds();
@@ -2901,6 +2891,9 @@ pub impl Parser {
     }
 
     // parse a set of optional generic type parameters
+    // matches generics = ( ) | ( < > ) | ( < typaramseq ( , )? > ) | ( < lifetimes ( , )? > )
+    //                  | ( < lifetimes , typaramseq ( , )? > )
+    // where   typaramseq = ( typaram ) | ( typaram , typaramseq )
     fn parse_generics(&self) -> ast::Generics {
         if self.eat(&token::LT) {
             let lifetimes = self.parse_lifetimes();
@@ -3806,7 +3799,7 @@ pub impl Parser {
         }
 
         let (sort, ident) = match *self.token {
-            token::PATH([id],false) => (ast::named, self.parse_ident()),
+            token::PATH([_],false) => (ast::named, self.parse_ident()),
             _ => {
                 if must_be_named_mod {
                     self.span_fatal(
