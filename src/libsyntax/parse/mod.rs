@@ -734,6 +734,38 @@ mod test {
     }
 
     
+    
+}
+
+
+#[cfg(test)]
+mod test2 {
+    mod sexp_encoder;
+    use core::option::{None};
+    use std::serialize::Encodable;
+    use parse;
+    use core::result::{Ok,Err};
+    use core::io;
+    use core::Path;
+    use ext;
+
+#[test] fn output_syntax_ast() {
+    let cfg = ~[];
+    let sess = parse::new_parse_sess(None);
+    let crate = parse::parse_crate_from_file(~Path(~"/Users/clements/rust/src/libsyntax/syntax.rc"),copy cfg,sess);
+    //let crate2 = ext::expand::expand_crate(sess, copy cfg, crate);
+    //io::print(fmt!("%?\n",crate));
+    let outport = 
+        match io::file_writer(~Path(~"/tmp/new-ast.rktd"),~[io::Create,io::Truncate]) {
+            Ok(w) => w,
+            Err(str) => fail!(str)
+        };
+    crate.encode(~sexp_encoder::Encoder(outport));
+    /*outport.flush();*/
+}
+
+
+
 }
 
 //
