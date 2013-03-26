@@ -2397,14 +2397,17 @@ pub impl Parser {
                 let binding_mode =
                     if refutable {bind_infer} else {bind_by_copy};
 
-                let cannot_be_enum_or_struct;
-                match self.look_ahead(1) {
+                let has_mod_sep = match *self.token {
+                    token::PATH(ids,isglobal) =>
+                    (ids.len() > 1) || (isglobal)
+                };
+                let followed_by_delim = match self.look_ahead(1) {
                     token::LPAREN | token::LBRACKET | token::LT |
                     token::LBRACE | token::MOD_SEP =>
-                        cannot_be_enum_or_struct = false,
-                    _ =>
-                        cannot_be_enum_or_struct = true
+                    true
+                    _ => false
                 }
+                let cannot_be_enum_or_struct = !(has_mod_sep || followed_by_delim);
 
                 if is_path(&*self.token) && cannot_be_enum_or_struct {
                     let name = self.parse_path_without_tps();
