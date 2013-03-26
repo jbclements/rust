@@ -35,7 +35,7 @@ fn unimpl_blank() {
 
 fn escape_str(s: &str) -> ~str {
     let mut escaped = ~"\"";
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         match c {
           '"' => escaped += ~"\\\"",
           '\\' => escaped += ~"\\\\",
@@ -52,7 +52,7 @@ fn escape_str(s: &str) -> ~str {
 
 pub fn vbar_escape_str(s: &str) -> ~str {
     let mut escaped = ~"|";
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         match c {
             '|' => escaped += ~"\\|",
             // is there really no nicer way than this? :
@@ -66,7 +66,7 @@ pub fn vbar_escape_str(s: &str) -> ~str {
 pub fn as_symbol (s: &str) -> ~str {
     // no regex library!
     let mut symbol_clean = true;
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         if ((c < '0')
             || ((c > '9') && (c < 'A'))
             || ((c > 'Z') && (c < '_'))

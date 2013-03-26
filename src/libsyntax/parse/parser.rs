@@ -2398,15 +2398,15 @@ pub impl Parser {
                     if refutable {bind_infer} else {bind_by_copy};
 
                 let has_mod_sep = match *self.token {
-                    token::PATH(ids,isglobal) =>
-                    (ids.len() > 1) || (isglobal)
+                    token::PATH(ids,isglobal) => (ids.len() > 1) || (isglobal),
+                    _ => false
                 };
                 let followed_by_delim = match self.look_ahead(1) {
                     token::LPAREN | token::LBRACKET | token::LT |
                     token::LBRACE | token::MOD_SEP =>
-                    true
+                    true,
                     _ => false
-                }
+                };
                 let cannot_be_enum_or_struct = !(has_mod_sep || followed_by_delim);
 
                 if is_path(&*self.token) && cannot_be_enum_or_struct {
@@ -2867,8 +2867,7 @@ pub impl Parser {
                     let ty = self.parse_ty(false);
                     result.push(TraitTyParamBound(ty));
                 }
-                _ => self.fatal(fmt!("expected a path or 'static, found %?",
-                                     *self.token))
+                _ => break
             }
 
             if self.eat(&token::BINOP(token::PLUS)) {
