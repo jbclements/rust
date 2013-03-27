@@ -133,7 +133,7 @@ pub fn ast_path_to_substs_and_ty<AC:AstConv,RS:region_scope + Copy + Durable>(
         self: &AC,
         rscope: &RS,
         did: ast::def_id,
-        path: @ast::path)
+        path: @ast::Path)
      -> ty_param_substs_and_ty {
     let tcx = self.tcx();
     let ty::ty_param_bounds_and_ty {
@@ -189,7 +189,7 @@ pub fn ast_path_to_ty<AC:AstConv,RS:region_scope + Copy + Durable>(
         self: &AC,
         rscope: &RS,
         did: ast::def_id,
-        path: @ast::path)
+        path: @ast::Path)
      -> ty_param_substs_and_ty
 {
     // Look up the polytype of the item and then substitute the provided types
@@ -285,7 +285,7 @@ pub fn ast_ty_to_ty<AC:AstConv, RS:region_scope + Copy + Durable>(
     }
 
     fn check_path_args(tcx: ty::ctxt,
-                       path: @ast::path,
+                       path: @ast::Path,
                        flags: uint) {
         if (flags & NO_TPS) != 0u {
             if path.types.len() > 0u {
