@@ -37,17 +37,19 @@ mod syntax {
 pub fn path(+ids: ~[ident], span: span) -> @ast::Path {
     @ast::Path { span: span,
                  global: false,
-                 idents: ids,
+                 idents: @ids,
                  rp: None,
-                 types: ~[] }
+                 types: ~[],
+                 ctxt: @ast::MT}
 }
 
 pub fn path_global(+ids: ~[ident], span: span) -> @ast::Path {
     @ast::Path { span: span,
                  global: true,
-                 idents: ids,
+                 idents: @ids,
                  rp: None,
-                 types: ~[] }
+                 types: ~[],
+                 ctxt: @ast::MT}
 }
 
 pub trait append_types {

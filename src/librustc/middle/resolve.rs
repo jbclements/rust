@@ -4053,14 +4053,15 @@ pub impl Resolver {
                         // Write the result into the def map.
                         debug!("(resolving type) writing resolution for `%s` \
                                 (id %d)",
-                               self.idents_to_str(path.idents),
+                               self.idents_to_str(*(path.idents)),
                                path_id);
                         self.record_def(path_id, def);
                     }
                     None => {
                         self.session.span_err
-                            (ty.span, fmt!("use of undeclared type name `%s`",
-                                           self.idents_to_str(path.idents)));
+                            (ty.span, fmt!(
+                                "use of undeclared type name `%s`",
+                                self.idents_to_str(*(path.idents))));
                     }
                 }
             }
@@ -4303,7 +4304,7 @@ pub impl Resolver {
                             self.session.span_err(
                                 path.span,
                                 fmt!("`%s` does not name a structure",
-                                     self.idents_to_str(path.idents)));
+                                     self.idents_to_str(*(path.idents))));
                         }
                     }
                 }
@@ -4744,12 +4745,12 @@ pub impl Resolver {
                     Some(def) => {
                         // Write the result into the def map.
                         debug!("(resolving expr) resolved `%s`",
-                               self.idents_to_str(path.idents));
+                               self.idents_to_str(*path.idents));
                         self.record_def(expr.id, def);
                     }
                     None => {
                         let wrong_name = self.idents_to_str(
-                            path.idents);
+                            *path.idents);
                         if self.name_exists_in_scope_struct(wrong_name) {
                             self.session.span_err(expr.span,
                                         fmt!("unresolved name: `%s`. \
@@ -4806,7 +4807,7 @@ pub impl Resolver {
                         self.session.span_err(
                             path.span,
                             fmt!("`%s` does not name a structure",
-                                 self.idents_to_str(path.idents)));
+                                 self.idents_to_str(*path.idents)));
                     }
                 }
 

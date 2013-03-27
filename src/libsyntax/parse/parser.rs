@@ -40,7 +40,7 @@ use ast::{item_mac, item_mod, item_struct, item_trait, item_ty, lit, lit_};
 use ast::{lit_bool, lit_float, lit_float_unsuffixed, lit_int};
 use ast::{lit_int_unsuffixed, lit_nil, lit_str, lit_uint, local, m_const};
 use ast::{m_imm, m_mutbl, mac_, mac_invoc_tt, matcher, match_nonterminal};
-use ast::{match_seq, match_tok, method, mode, module_ns, mt, mul, mutability};
+use ast::{match_seq, match_tok, method, mode, module_ns, mt, MT, mul, mutability};
 use ast::{named_field, neg, node_id, noreturn, not, pat, pat_box, pat_enum};
 use ast::{pat_ident, pat_lit, pat_range, pat_region, pat_struct};
 use ast::{pat_tup, pat_uniq, pat_wild, private};
@@ -920,9 +920,10 @@ pub impl Parser {
         }
         @ast::Path { span: mk_sp(lo, self.last_span.hi),
                      global: global,
-                     idents: ids,
+                     idents: @ids,
                      rp: None,
-                     types: ~[] }
+                     types: ~[],
+                     ctxt: @ast::MT}
     }
 
     // parse a path optionally with type parameters. If 'colons'
@@ -2365,7 +2366,7 @@ pub impl Parser {
                                 pat = pat_enum(enum_path, None);
                             }
                             else if vec::is_empty(args) &&
-                                vec::len(enum_path.idents) == 1u {
+                                (enum_path.idents.len()) == 1u {
                                 pat = pat_ident(binding_mode,
                                                 enum_path,
                                                 None);
@@ -4247,9 +4248,10 @@ pub impl Parser {
             }
             let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                     global: false,
-                                    idents: path,
+                                    idents: @path,
                                     rp: None,
-                                    types: ~[] };
+                                    types: ~[],
+                                    ctxt: @ast::MT};
             return @spanned(lo, self.span.hi,
                          view_path_simple(first_ident, path, namespace,
                                           self.get_id()));
@@ -4276,9 +4278,10 @@ pub impl Parser {
                     );
                     let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                             global: false,
-                                            idents: path,
+                                            idents: @path,
                                             rp: None,
-                                            types: ~[] };
+                                            types: ~[],
+                                            ctxt: @ast::MT};
                     return @spanned(lo, self.span.hi,
                                  view_path_list(path, idents, self.get_id()));
                   }
@@ -4288,11 +4291,12 @@ pub impl Parser {
                     self.bump();
                     let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                             global: false,
-                                            idents: path,
+                                            idents: @path,
                                             rp: None,
-                                            types: ~[] };
+                                            types: ~[],
+                                            ctxt: @ast::MT};
                     return @spanned(lo, self.span.hi,
-                                 view_path_glob(path, self.get_id()));
+                                    view_path_glob(path, self.get_id()));
                   }
 
                   _ => break
@@ -4304,9 +4308,10 @@ pub impl Parser {
         let last = path[vec::len(path) - 1u];
         let path = @ast::Path { span: mk_sp(lo, self.span.hi),
                                 global: false,
-                                idents: path,
+                                idents: @path,
                                 rp: None,
-                                types: ~[] };
+                                types: ~[],
+                                ctxt: @ast::MT};
         return @spanned(lo, self.span.hi,
                      view_path_simple(last, path, namespace, self.get_id()));
     }

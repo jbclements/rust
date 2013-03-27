@@ -253,9 +253,10 @@ priv impl @ext_ctxt {
         @ast::Path {
             span: span,
             global: false,
-            idents: strs,
+            idents: @strs,
             rp: None,
-            types: ~[]
+            types: ~[],
+            ctxt: @ast::MT
         }
     }
 
@@ -263,9 +264,10 @@ priv impl @ext_ctxt {
         @ast::Path {
             span: span,
             global: true,
-            idents: strs,
+            idents: @strs,
             rp: None,
-            types: ~[]
+            types: ~[],
+            ctxt: @ast::MT
         }
     }
 
@@ -278,9 +280,10 @@ priv impl @ext_ctxt {
         @ast::Path {
             span: span,
             global: false,
-            idents: strs,
+            idents: @strs,
             rp: None,
-            types: tps
+            types: tps,
+            ctxt: @ast::MT
         }
     }
 
@@ -293,9 +296,10 @@ priv impl @ext_ctxt {
         @ast::Path {
             span: span,
             global: true,
-            idents: strs,
+            idents: @strs,
             rp: None,
-            types: tps
+            types: tps,
+            ctxt: @ast::MT
         }
     }
 

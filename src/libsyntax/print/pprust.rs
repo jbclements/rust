@@ -1813,7 +1813,7 @@ pub fn print_view_path(s: @ps, &&vp: @ast::view_path) {
         if namespace == ast::module_ns {
             word_space(s, ~"mod");
         }
-        if path.idents[vec::len(path.idents)-1u] != ident {
+        if path.idents[path.idents.len()-1u] != ident {
             print_ident(s, ident);
             space(s.s);
             word_space(s, ~"=");

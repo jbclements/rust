@@ -136,9 +136,11 @@ fn parse_path(st: @mut PState) -> @ast::Path {
             if c == '(' {
                 return @ast::Path { span: dummy_sp(),
                                     global: false,
-                                    idents: idents,
+                                    idents: @idents,
                                     rp: None,
-                                    types: ~[] };
+                                    types: ~[],
+                                   ctxt: @ast::MT
+                                  };
             } else { idents.push(parse_ident_(st, is_last)); }
           }
         }

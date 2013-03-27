@@ -44,9 +44,10 @@ pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
             @ast::Path {
                  span: sp,
                  global: false,
-                 idents: ~[res],
+                 idents: @~[res],
                  rp: None,
                  types: ~[],
+                 ctxt: @ast::MT
             }
         ),
         span: sp,

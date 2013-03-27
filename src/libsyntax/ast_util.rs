@@ -226,9 +226,10 @@ pub fn default_block(
 pub fn ident_to_path(s: span, +i: ident) -> @Path {
     @ast::Path { span: s,
                  global: false,
-                 idents: ~[i],
+                 idents: @~[i],
                  rp: None,
-                 types: ~[] }
+                 types: ~[],
+                 ctxt: @MT}
 }
 
 pub fn ident_to_pat(id: node_id, s: span, +i: ident) -> @pat {

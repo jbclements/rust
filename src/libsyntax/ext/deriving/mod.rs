@@ -188,9 +188,10 @@ pub fn create_derived_impl(cx: @ext_ctxt,
     let trait_path = ast::Path {
         span: span,
         global: true,
-        idents: trait_path.map(|x| *x),
+        idents: @trait_path.map(|x| *x),
         rp: None,
-        types: ~[]
+        types: ~[],
+        ctxt: @ast::MT
     };
     let trait_path = @trait_path;
     let trait_ref = ast::trait_ref {

@@ -706,9 +706,10 @@ fn noop_fold_path(p: @Path, fld: @ast_fold) -> Path {
     ast::Path {
         span: fld.new_span(p.span),
         global: p.global,
-        idents: p.idents.map(|x| fld.fold_ident(*x)),
+        idents: @p.idents.map(|x| fld.fold_ident(*x)),
         rp: p.rp,
         types: p.types.map(|x| fld.fold_ty(*x)),
+        ctxt: p.ctxt,
     }
 }
 
