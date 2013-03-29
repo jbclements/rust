@@ -872,6 +872,7 @@ pub impl Parser {
         }
     }
 
+    // matches token_lit = LIT_INT | ...
     fn lit_from_token(&self, tok: &token::Token) -> lit_ {
         match *tok {
             token::LIT_INT(i, it) => lit_int(i, it),
@@ -886,6 +887,7 @@ pub impl Parser {
         }
     }
 
+    // matches lit = true | false | token_lit
     fn parse_lit(&self) -> lit {
         let lo = self.span.lo;
         let lit = if self.eat_keyword(&~"true") {
@@ -2764,8 +2766,6 @@ pub impl Parser {
     // matches optbounds = ( ( : ( boundseq )? )? )
     // where   boundseq  = ( bound + boundseq ) | bound
     // and     bound     = ( 'static ) | ty
-    // you might want to insist on the boundseq having seen the colon, but
-    // that's not currently in place.
     fn parse_optional_ty_param_bounds(&self) -> @OptVec<TyParamBound> {
         if !self.eat(&token::COLON) {
             return @opt_vec::Empty;
@@ -3087,6 +3087,7 @@ pub impl Parser {
         }
     }
 
+    // matches fn_header = IDENT generics
     // parse the name and optional generic types of a function header.
     fn parse_fn_header(&self) -> (ident, ast::Generics) {
         let id = self.parse_ident();
@@ -3438,7 +3439,7 @@ pub impl Parser {
         let attrs_remaining_len = attrs_remaining.len();
 
         // looks like this code depends on the invariant that
-        // outer attributes can't occur on view items (or macros
+        // outer attributes can't occur on view items (or macro
         // invocations?)
         let mut first = true;
         while *self.token != term {
@@ -3451,9 +3452,9 @@ pub impl Parser {
                    attrs);
             match self.parse_item_or_view_item(
                 /*bad*/ copy attrs,
-                true,
-                false,
-                true
+                true, // items allowed
+                false, // foreign items allowed
+                true // macros allowed
             ) {
               iovi_item(item) => items.push(item),
               iovi_view_item(view_item) => {
@@ -3708,6 +3709,7 @@ pub impl Parser {
         }
     }
 
+    // parse extern mod foo { ... } or extern { ... }
     fn parse_item_foreign_mod(&self,
                               lo: BytePos,
                               opt_abis: Option<AbiSet>,
