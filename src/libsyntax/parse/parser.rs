@@ -705,6 +705,7 @@ pub impl Parser {
         @Ty {id: self.get_id(), node: t, span: sp}
     }
 
+    // parse the type following a @ or a ~
     fn parse_box_or_uniq_pointee(
         &self,
         sigil: ast::Sigil,
@@ -988,12 +989,8 @@ pub impl Parser {
                      .. copy *path }
     }
 
+    /// parses 0 or 1 lifetime
     fn parse_opt_lifetime(&self) -> Option<@ast::Lifetime> {
-        /*!
-         *
-         * Parses 0 or 1 lifetime.
-         */
-
         match *self.token {
             token::LIFETIME(*) => {
                 Some(@self.parse_lifetime())
@@ -1022,12 +1019,9 @@ pub impl Parser {
         }
     }
 
+    /// Parses a single lifetime
+    // matches lifetime = ( LIFETIME ) | ( IDENT / )
     fn parse_lifetime(&self) -> ast::Lifetime {
-        /*!
-         *
-         * Parses a single lifetime.
-         */
-
         match *self.token {
             token::LIFETIME(i) => {
                 let span = copy self.span;
@@ -1147,6 +1141,9 @@ pub impl Parser {
         }
     }
 
+    // at the bottom (top?) of the precedence hierarchy,
+    // parse things like parenthesized exprs,
+    // macros, return, etc.
     fn parse_bottom_expr(&self) -> @expr {
         maybe_whole_expr!(self);
 
@@ -1350,6 +1347,7 @@ pub impl Parser {
         return self.mk_expr(blk.span.lo, blk.span.hi, expr_block(blk));
     }
 
+    // parse a.b or a(13) or just a
     fn parse_dot_or_call_expr(&self) -> @expr {
         let b = self.parse_bottom_expr();
         self.parse_dot_or_call_expr_with(b)
@@ -1618,7 +1616,7 @@ pub impl Parser {
         return spanned(lo, self.span.hi, m);
     }
 
-
+    // parse a prefix-operator expr
     fn parse_prefix_expr(&self) -> @expr {
         let lo = self.span.lo;
         let mut hi;
@@ -2556,11 +2554,14 @@ pub impl Parser {
     }
 
     fn parse_block(&self) -> blk {
+        // disallow inner attrs:
         let (attrs, blk) = self.parse_inner_attrs_and_block(false);
         assert!(vec::is_empty(attrs));
         return blk;
     }
 
+    // I claim the existence of the 'parse_attrs' flag strongly
+    // suggests a name-change or refactoring for this function.
     fn parse_inner_attrs_and_block(&self, parse_attrs: bool)
         -> (~[attribute], blk) {
 
@@ -2601,6 +2602,7 @@ pub impl Parser {
         self.parse_block_tail_(lo, s, ~[])
     }
 
+    // parse the rest of a block expression or function body
     fn parse_block_tail_(&self, lo: BytePos, s: blk_check_mode,
                          +first_item_attrs: ~[attribute]) -> blk {
         let mut stmts = ~[];
@@ -2806,6 +2808,10 @@ pub impl Parser {
         ast::TyParam { ident: ident, id: self.get_id(), bounds: bounds }
     }
 
+    // parse a set of optional generic type parameter declarations
+    // matches generics = ( ) | ( < > ) | ( < typaramseq ( , )? > ) | ( < lifetimes ( , )? > )
+    //                  | ( < lifetimes , typaramseq ( , )? > )
+    // where   typaramseq = ( typaram ) | ( typaram , typaramseq )
     fn parse_generics(&self) -> ast::Generics {
         if self.eat(&token::LT) {
             let lifetimes = self.parse_lifetimes();
@@ -2818,6 +2824,7 @@ pub impl Parser {
         }
     }
 
+    // parse a generic use site
     fn parse_generic_values(
         &self) -> (OptVec<ast::Lifetime>, ~[@Ty])
     {
@@ -3108,6 +3115,7 @@ pub impl Parser {
         }
     }
 
+    // parse trait Foo { ... }
     fn parse_item_trait(&self) -> item_info {
         let ident = self.parse_ident();
         self.parse_region_param();
@@ -3186,6 +3194,7 @@ pub impl Parser {
         (ident, item_impl(generics, opt_trait, ty, meths), None)
     }
 
+    // parse a::B<~str,int>
     fn parse_trait_ref(&self) -> @trait_ref {
         @ast::trait_ref {
             path: self.parse_path_with_tps(false),
@@ -3193,6 +3202,7 @@ pub impl Parser {
         }
     }
 
+    // parse B + C<~str,int> + D
     fn parse_trait_ref_list(&self, ket: &token::Token) -> ~[@trait_ref] {
         self.parse_seq_to_before_end(
             ket,
@@ -3201,6 +3211,7 @@ pub impl Parser {
         )
     }
 
+    // parse struct Foo { ... }
     fn parse_item_struct(&self) -> item_info {
         let class_name = self.parse_ident();
         self.parse_region_param();
@@ -3450,6 +3461,7 @@ pub impl Parser {
         (id, item_const(ty, e), None)
     }
 
+    // parse a mod { ...}  item
     fn parse_item_mod(&self, outer_attrs: ~[ast::attribute]) -> item_info {
         let id_span = *self.span;
         let id = self.parse_ident();
@@ -3706,7 +3718,7 @@ pub impl Parser {
             }
         };
 
-        // extern mod { ... }
+        // extern mod foo { ... } or extern { ... }
         if items_allowed && self.eat(&token::LBRACE) {
             let abis = opt_abis.get_or_default(AbiSet::C());
 
@@ -3741,6 +3753,7 @@ pub impl Parser {
         (lo, id)
     }
 
+    // parse type Foo = Bar;
     fn parse_item_type(&self) -> item_info {
         let (_, ident) = self.parse_type_decl();
         self.parse_region_param();
@@ -3751,6 +3764,7 @@ pub impl Parser {
         (ident, item_ty(ty, tps), None)
     }
 
+    // parse obsolete region parameter
     fn parse_region_param(&self) {
         if self.eat(&token::BINOP(token::SLASH)) {
             self.obsolete(*self.last_span, ObsoleteLifetimeNotation);
@@ -3868,6 +3882,7 @@ pub impl Parser {
         let generics = self.parse_generics();
         // Newtype syntax
         if *self.token == token::EQ {
+            // enum x = ty;
             self.bump();
             let ty = self.parse_ty(false);
             self.expect(&token::SEMI);
@@ -3892,6 +3907,7 @@ pub impl Parser {
                 None
             );
         }
+        // enum X { ... }
         self.expect(&token::LBRACE);
 
         let enum_definition = self.parse_enum_def(&generics);
@@ -3995,7 +4011,7 @@ pub impl Parser {
                 (self.is_keyword(&~"const") ||
                 (self.is_keyword(&~"static") &&
                     !self.token_is_keyword(&~"fn", &self.look_ahead(1)))) {
-            // CONST ITEM
+            // CONST / STATIC ITEM
             if self.is_keyword(&~"const") {
                 self.obsolete(*self.span, ObsoleteConstItem);
             }
@@ -4011,10 +4027,9 @@ pub impl Parser {
             let item = self.parse_item_foreign_const(visibility, attrs);
             return iovi_foreign_item(item);
         }
-        if items_allowed &&
-            // FUNCTION ITEM (not sure about lookahead condition...)
-            self.is_keyword(&~"fn") &&
+        if items_allowed && self.is_keyword(&~"fn") &&
             !self.fn_expr_lookahead(self.look_ahead(1u)) {
+            // FUNCTION ITEM
             self.bump();
             let (ident, item_, extra_attrs) =
                 self.parse_item_fn(impure_fn, AbiSet::Rust());
@@ -4023,7 +4038,7 @@ pub impl Parser {
                                           maybe_append(attrs, extra_attrs)));
         }
         if items_allowed && self.eat_keyword(&~"pure") {
-            // PURE FUNCTION ITEM
+            // PURE FUNCTION ITEM (obsolete)
             self.obsolete(*self.last_span, ObsoletePurity);
             self.expect_keyword(&~"fn");
             let (ident, item_, extra_attrs) =
@@ -4201,6 +4216,12 @@ pub impl Parser {
         return view_item_use(self.parse_view_paths());
     }
 
+
+    // matches view_path : MOD? IDENT EQ non_global_path
+    // | MOD? non_global_path MOD_SEP LBRACE RBRACE
+    // | MOD? non_global_path MOD_SEP LBRACE ident_seq RBRACE
+    // | MOD? non_global_path MOD_SEP STAR
+    // | MOD? non_global_path
     fn parse_view_path(&self) -> @view_path {
         let lo = self.span.lo;
 
@@ -4290,6 +4311,7 @@ pub impl Parser {
                      view_path_simple(last, path, namespace, self.get_id()));
     }
 
+    // matches view_paths = view_path | view_path , view_paths
     fn parse_view_paths(&self) -> ~[@view_path] {
         let mut vp = ~[self.parse_view_path()];
         while *self.token == token::COMMA {
@@ -4339,6 +4361,9 @@ pub impl Parser {
 
     // Parses a sequence of items. Stops when it finds program
     // text that can't be parsed as an item
+    // - mod_items uses VIEW_ITEMS_AND_ITEMS_ALLOWED
+    // - block_tail_ uses IMPORTS_AND_ITEMS_ALLOWED
+    // - foreign_mod_items uses FOREIGN_ITEMS_ALLOWED
     fn parse_items_and_view_items(&self, +first_item_attrs: ~[attribute],
                                   mode: view_item_parse_mode,
                                   macros_allowed: bool)
