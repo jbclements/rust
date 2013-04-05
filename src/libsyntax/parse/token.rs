@@ -309,50 +309,50 @@ pub fn is_bar(t: &Token) -> bool {
 pub mod special_idents {
     use ast::ident;
 
-    pub static underscore : ident = ident { repr: 0u };
-    pub static anon : ident = ident { repr: 1u };
-    pub static dtor : ident = ident { repr: 2u }; // 'drop', but that's
+    pub static underscore : ident = ident { repr: 0u, ctxt: 15 };
+    pub static anon : ident = ident { repr: 1u, ctxt: 15 };
+    pub static dtor : ident = ident { repr: 2u, ctxt: 15 }; // 'drop', but that's
                                                  // reserved
-    pub static invalid : ident = ident { repr: 3u }; // ''
-    pub static unary : ident = ident { repr: 4u };
-    pub static not_fn : ident = ident { repr: 5u };
-    pub static idx_fn : ident = ident { repr: 6u };
-    pub static unary_minus_fn : ident = ident { repr: 7u };
-    pub static clownshoes_extensions : ident = ident { repr: 8u };
+    pub static invalid : ident = ident { repr: 3u, ctxt: 15 }; // ''
+    pub static unary : ident = ident { repr: 4u, ctxt: 15 };
+    pub static not_fn : ident = ident { repr: 5u, ctxt: 15 };
+    pub static idx_fn : ident = ident { repr: 6u, ctxt: 15 };
+    pub static unary_minus_fn : ident = ident { repr: 7u, ctxt: 15 };
+    pub static clownshoes_extensions : ident = ident { repr: 8u, ctxt: 15 };
 
-    pub static self_ : ident = ident { repr: 9u }; // 'self'
+    pub static self_ : ident = ident { repr: 9u, ctxt: 15 }; // 'self'
 
     /* for matcher NTs */
-    pub static item : ident = ident { repr: 10u };
-    pub static block : ident = ident { repr: 11u };
-    pub static stmt : ident = ident { repr: 12u };
-    pub static pat : ident = ident { repr: 13u };
-    pub static expr : ident = ident { repr: 14u };
-    pub static ty : ident = ident { repr: 15u };
-    pub static ident : ident = ident { repr: 16u };
-    pub static path : ident = ident { repr: 17u };
-    pub static tt : ident = ident { repr: 18u };
-    pub static matchers : ident = ident { repr: 19u };
+    pub static item : ident = ident { repr: 10u, ctxt: 15 };
+    pub static block : ident = ident { repr: 11u, ctxt: 15 };
+    pub static stmt : ident = ident { repr: 12u, ctxt: 15 };
+    pub static pat : ident = ident { repr: 13u, ctxt: 15 };
+    pub static expr : ident = ident { repr: 14u, ctxt: 15 };
+    pub static ty : ident = ident { repr: 15u, ctxt: 15 };
+    pub static ident : ident = ident { repr: 16u, ctxt: 15 };
+    pub static path : ident = ident { repr: 17u, ctxt: 15 };
+    pub static tt : ident = ident { repr: 18u, ctxt: 15 };
+    pub static matchers : ident = ident { repr: 19u, ctxt: 15 };
 
-    pub static str : ident = ident { repr: 20u }; // for the type
+    pub static str : ident = ident { repr: 20u, ctxt: 15 }; // for the type
 
     /* outside of libsyntax */
-    pub static ty_visitor : ident = ident { repr: 21u };
-    pub static arg : ident = ident { repr: 22u };
-    pub static descrim : ident = ident { repr: 23u };
-    pub static clownshoe_abi : ident = ident { repr: 24u };
-    pub static clownshoe_stack_shim : ident = ident { repr: 25u };
-    pub static tydesc : ident = ident { repr: 26u };
-    pub static literally_dtor : ident = ident { repr: 27u };
-    pub static main : ident = ident { repr: 28u };
-    pub static opaque : ident = ident { repr: 29u };
-    pub static blk : ident = ident { repr: 30u };
-    pub static static : ident = ident { repr: 31u };
-    pub static intrinsic : ident = ident { repr: 32u };
-    pub static clownshoes_foreign_mod: ident = ident { repr: 33 };
-    pub static unnamed_field: ident = ident { repr: 34 };
-    pub static c_abi: ident = ident { repr: 35 };
-    pub static type_self: ident = ident { repr: 36 };    // `Self`
+    pub static ty_visitor : ident = ident { repr: 21u, ctxt: 15 };
+    pub static arg : ident = ident { repr: 22u, ctxt: 15 };
+    pub static descrim : ident = ident { repr: 23u, ctxt: 15 };
+    pub static clownshoe_abi : ident = ident { repr: 24u, ctxt: 15 };
+    pub static clownshoe_stack_shim : ident = ident { repr: 25u, ctxt: 15 };
+    pub static tydesc : ident = ident { repr: 26u, ctxt: 15 };
+    pub static literally_dtor : ident = ident { repr: 27u, ctxt: 15 };
+    pub static main : ident = ident { repr: 28u, ctxt: 15 };
+    pub static opaque : ident = ident { repr: 29u, ctxt: 15 };
+    pub static blk : ident = ident { repr: 30u, ctxt: 15 };
+    pub static static : ident = ident { repr: 31u, ctxt: 15 };
+    pub static intrinsic : ident = ident { repr: 32u, ctxt: 15 };
+    pub static clownshoes_foreign_mod: ident = ident { repr: 33u, ctxt: 15 };
+    pub static unnamed_field: ident = ident { repr: 34u, ctxt: 15 };
+    pub static c_abi: ident = ident { repr: 35u, ctxt: 15 };
+    pub static type_self: ident = ident { repr: 36u, ctxt: 15 };    // `Self`
 }
 
 pub struct ident_interner {
@@ -361,10 +361,10 @@ pub struct ident_interner {
 
 pub impl ident_interner {
     fn intern(&self, val: @~str) -> ast::ident {
-        ast::ident { repr: self.interner.intern(val) }
+        ast::ident { repr: self.interner.intern(val) , ctxt: 15}
     }
     fn gensym(&self, val: @~str) -> ast::ident {
-        ast::ident { repr: self.interner.gensym(val) }
+        ast::ident { repr: self.interner.gensym(val) , ctxt: 15}
     }
     fn get(&self, idx: ast::ident) -> @~str {
         self.interner.get(idx.repr)

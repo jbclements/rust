@@ -27,7 +27,7 @@ use std::serialize::{Encodable, Decodable, Encoder, Decoder};
 // macro expansion per Flatt et al., "Macros
 // That Work Together"
 #[deriving(Eq)]
-pub struct ident { repr: Name }
+pub struct ident { repr: Name , ctxt : uint }
 
 // a SyntaxContext represents a chain of macro-expandings
 // and renamings. Each macro expansion corresponds to
