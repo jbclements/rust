@@ -21,7 +21,6 @@ use core::char;
 use core::hashmap::HashSet;
 use core::str;
 use core::task;
-use core::option::None;
 
 #[auto_encode]
 #[auto_decode]
@@ -309,6 +308,7 @@ pub fn is_bar(t: &Token) -> bool {
 
 pub mod special_idents {
     use ast::ident;
+    use core::option::None;
 
     pub static underscore : ident = ident { repr: 0u, ctxt: None };
     pub static anon : ident = ident { repr: 1u, ctxt: None };
@@ -329,7 +329,7 @@ pub mod special_idents {
     pub static stmt : ident = ident { repr: 12u, ctxt: None };
     pub static pat : ident = ident { repr: 13u, ctxt: None };
     pub static expr : ident = ident { repr: 14u, ctxt: None };
-    pub static ty : ident = ident { repr: Noneu, ctxt: None };
+    pub static ty : ident = ident { repr: 15u, ctxt: None };
     pub static ident : ident = ident { repr: 16u, ctxt: None };
     pub static path : ident = ident { repr: 17u, ctxt: None };
     pub static tt : ident = ident { repr: 18u, ctxt: None };
