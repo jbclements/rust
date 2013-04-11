@@ -90,6 +90,7 @@ pub mod par;
 pub mod cmp;
 pub mod base64;
 pub mod rl;
+pub mod sexp;
 pub mod workcache;
 #[cfg(not(stage0))]
 #[path="num/bigint.rs"]
