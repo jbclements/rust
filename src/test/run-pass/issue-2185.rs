@@ -8,22 +8,21 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// xfail-test FIXME #2263
 // xfail-fast
 // This test had to do with an outdated version of the iterable trait.
 // However, the condition it was testing seemed complex enough to
 // warrant still having a test, so I inlined the old definitions.
 
 trait iterable<A> {
-    fn iter(blk: &fn(A));
+    fn iter(&self, blk: &fn(A));
 }
 
 impl<A> iterable<A> for @fn(&fn(A)) {
-    fn iter(blk: &fn(A)) { self(blk); }
+    fn iter(&self, blk: &fn(A)) { self(blk); }
 }
 
 impl iterable<uint> for @fn(&fn(uint)) {
-    fn iter(blk: &fn(&&v: uint)) { self( |i| blk(i) ) }
+    fn iter(&self, blk: &fn(v: uint)) { self( |i| blk(i) ) }
 }
 
 fn filter<A,IA:iterable<A>>(self: IA, prd: @fn(A) -> bool, blk: &fn(A)) {
