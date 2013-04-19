@@ -3352,13 +3352,7 @@ pub impl Parser {
         a_var
     }
 
-    fn parse_dtor(&self, attrs: ~[attribute]) -> class_contents {
-        let lo = self.last_span.lo;
-        let body = self.parse_block();
-        dtor_decl(body, attrs, mk_sp(lo, self.last_span.hi))
-    }
-
-    // parse an item in a struct definition
+    // parse an element of a struct definition
     fn parse_struct_decl_field(&self) -> class_contents {
 
         if self.try_parse_obsolete_priv_section() {
@@ -3380,7 +3374,9 @@ pub impl Parser {
         }
 
         if self.eat_keyword(&~"drop") {
-           return self.parse_dtor(attrs);
+            let lo = self.last_span.lo;
+            let body = self.parse_block();
+            return dtor_decl(body, attrs, mk_sp(lo, self.last_span.hi))
         }
         else {
            return members(~[self.parse_single_struct_field(inherited)]);
