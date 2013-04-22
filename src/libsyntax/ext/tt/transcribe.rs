@@ -59,7 +59,7 @@ pub fn new_tt_reader(sp_diag: @span_handler,
             sep: None,
             up: option::None
         },
-        interpolations: match interp { /* just a convienience */
+        interpolations: match interp { /* just a convenience */
             None => HashMap::new(),
             Some(x) => x
         },

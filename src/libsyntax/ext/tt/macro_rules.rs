@@ -58,7 +58,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
                                    cx.parse_sess().interner, None, copy arg);
     let argument_map = parse_or_else(cx.parse_sess(),
                                      cx.cfg(),
-                                     arg_reader as @reader,
+                                     arg_reader,
                                      argument_gram);
 
     // Extract the arguments:
@@ -102,7 +102,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
                     itr,
                     None,
                     vec::from_slice(arg)
-                ) as @reader;
+                );
                 match parse(cx.parse_sess(), cx.cfg(), arg_rdr, (*mtcs)) {
                   success(named_matches) => {
                     let rhs = match rhses[i] {

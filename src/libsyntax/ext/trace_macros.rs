@@ -13,6 +13,7 @@ use codemap::span;
 use ext::base::ext_ctxt;
 use ext::base;
 use parse::lexer::{new_tt_reader, reader};
+use ext::tt::transcribe::dup_tt_reader;
 use parse::parser::Parser;
 
 pub fn expand_trace_macros(cx: @ext_ctxt,
@@ -27,11 +28,10 @@ pub fn expand_trace_macros(cx: @ext_ctxt,
         None,
         vec::from_slice(tt)
     );
-    let rdr = tt_rdr as @reader;
     let rust_parser = Parser(
         sess,
         copy cfg,
-        rdr.dup()
+        (dup_tt_reader(tt_rdr) as @reader)
     );
 
     if rust_parser.is_keyword(&~"true") {
@@ -44,7 +44,7 @@ pub fn expand_trace_macros(cx: @ext_ctxt,
 
     rust_parser.bump();
 
-    let rust_parser = Parser(sess, cfg, rdr.dup());
+    let rust_parser = Parser(sess, cfg, (dup_tt_reader(tt_rdr) as @reader));
     let result = rust_parser.parse_expr();
     base::MRExpr(result)
 }

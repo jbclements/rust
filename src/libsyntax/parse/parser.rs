@@ -62,6 +62,7 @@ use ast_util::{as_prec, ident_to_path, operator_prec};
 use ast_util;
 use codemap::{span, BytePos, spanned, mk_sp};
 use codemap;
+use ext::tt::transcribe::{TtReader};
 use parse::attr::parser_attr;
 use parse::classify;
 use parse::common::{seq_sep_none};
@@ -217,10 +218,10 @@ struct ParsedItemsAndViewItems {
 
 pub fn Parser(sess: @mut ParseSess,
               cfg: ast::crate_cfg,
-              rdr: @reader)
+              rdr: @TtReader)
            -> Parser {
-    let tok0 = copy rdr.next_token();
-    let interner = rdr.interner();
+    let tok0 = copy (rdr as @reader).next_token();
+    let interner = (rdr as @reader).interner();
 
     Parser {
         reader: rdr,
@@ -260,7 +261,7 @@ pub struct Parser {
     tokens_consumed: @mut uint,
     restriction: @mut restriction,
     quote_depth: @mut uint, // not (yet) related to the quasiquoter
-    reader: @reader,
+    reader: @TtReader,
     interner: @token::ident_interner,
     keywords: HashSet<~str>,
     strict_keywords: HashSet<~str>,
@@ -284,7 +285,7 @@ pub impl Parser {
     fn bump(&self) {
         *self.last_span = copy *self.span;
         let next = if *self.buffer_start == *self.buffer_end {
-            self.reader.next_token()
+            (self.reader as @reader).next_token()
         } else {
             let next = copy self.buffer[*self.buffer_start];
             *self.buffer_start = (*self.buffer_start + 1) & 3;
@@ -307,8 +308,8 @@ pub impl Parser {
     }
     fn look_ahead(&self, distance: uint) -> token::Token {
         let dist = distance as int;
-        while self.buffer_length() < dist {
-            self.buffer[*self.buffer_end] = self.reader.next_token();
+        while (self.buffer_length() < dist) {
+            self.buffer[*self.buffer_end] = (self.reader as @reader).next_token();
             *self.buffer_end = (*self.buffer_end + 1) & 3;
         }
         return copy self.buffer[(*self.buffer_start + dist - 1) & 3].tok;
@@ -998,7 +999,7 @@ pub impl Parser {
                 if v.len() == 0 {
                     None
                 } else if v.len() == 1 {
-                    Some(@*v.get(0))
+                    Some(@*(v.get(0)))
                 } else {
                     self.fatal(fmt!("Expected at most one \
                                      lifetime name (for now)"));

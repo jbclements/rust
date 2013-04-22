@@ -50,6 +50,7 @@ use ext::base::ext_ctxt;
 use ext::pipes::parse_proto::proto_parser;
 use ext::pipes::pipec::gen_init;
 use ext::pipes::proto::visit;
+use ext::tt::transcribe::dup_tt_reader;
 use parse::lexer::{new_tt_reader, reader};
 use parse::parser::Parser;
 
@@ -71,8 +72,7 @@ pub fn expand_proto(cx: @ext_ctxt, _sp: span, id: ast::ident,
                                cx.parse_sess().interner,
                                None,
                                copy tt);
-    let rdr = tt_rdr as @reader;
-    let rust_parser = Parser(sess, cfg, rdr.dup());
+    let rust_parser = Parser(sess, cfg, dup_tt_reader(tt_rdr));
 
     let mut proto = rust_parser.parse_proto(cx.str_of(id));
 
