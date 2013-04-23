@@ -9,6 +9,9 @@
 // except according to those terms.
 
 use core::io::{Writer, WriterUtil, ReaderUtil};
+use core::str;
+use core::float;
+use serialize;
 
 // This module encodes Rust values as strings
 // that are readable as s-expressions.
@@ -38,11 +41,11 @@ use core::io::{Writer, WriterUtil, ReaderUtil};
 
 // LOTS of stuff here copied from json.rs:
 pub struct Encoder {
-    wr: @io::Writer,
+    wr: @Writer,
 }
 
 // given a writer, produce a new sexp encoder
-pub fn Encoder(wr: @io::Writer) -> Encoder {
+pub fn Encoder(wr: @Writer) -> Encoder {
     Encoder { wr: wr }
 }
 
@@ -59,7 +62,7 @@ fn unimpl(err: ~str) {
 // escape a string so that it can be read as a string
 fn escape_str(s: &str) -> ~str {
     let mut escaped = ~"\"";
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         match c {
           '"' => escaped += ~"\\\"",
           '\\' => escaped += ~"\\\\",
@@ -77,7 +80,7 @@ fn escape_str(s: &str) -> ~str {
 // escape a string containing funny chars so that it can be read as a symbol
 pub fn vbar_escape_str(s: &str) -> ~str {
     let mut escaped = ~"|";
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         match c {
             '|' => escaped += ~"\\|",
             // is there really no nicer way than this? :
@@ -92,7 +95,7 @@ pub fn vbar_escape_str(s: &str) -> ~str {
 pub fn as_symbol (s: &str) -> ~str {
     // no regex library!
     let mut symbol_clean = true;
-    for str::chars_each(s) |c| {
+    for str::each_char(s) |c| {
         if ((c < '0')
             || ((c > '9') && (c < 'A'))
             || ((c > 'Z') && (c < '_'))
@@ -109,14 +112,14 @@ pub fn as_symbol (s: &str) -> ~str {
 }
 
 
-impl std::serialize::Encoder for Encoder {
+impl serialize::Encoder for Encoder {
     fn emit_nil(&self) { self.wr.write_str(~"(nil)"); }
 
     fn emit_uint(&self, v: uint) { self.wr.write_str (v.to_str()); }
     fn emit_u64(&self, v: u64) { self.wr.write_str (v.to_str()); }
-    fn emit_u32(&self, _v: u32) { self.wr.write_str (v.to_str()); }
-    fn emit_u16(&self, _v: u16) { self.wr.write_str (v.to_str()); }
-    fn emit_u8(&self, _v: u8)   { self.wr.write_str (v.to_str()); }
+    fn emit_u32(&self, v: u32) { self.wr.write_str (v.to_str()); }
+    fn emit_u16(&self, v: u16) { self.wr.write_str (v.to_str()); }
+    fn emit_u8(&self, v: u8)   { self.wr.write_str (v.to_str()); }
 
     fn emit_int(&self, v: int) { self.wr.write_str (v.to_str()); }
     fn emit_i64(&self, v: i64) { self.wr.write_str (v.to_str()); }
@@ -136,14 +139,8 @@ impl std::serialize::Encoder for Encoder {
 
     fn emit_char(&self, _v: char) { unimpl(~"char"); }
 
-    fn emit_borrowed_str(&self, v: &str) { self.emit_owned_str(v); }
-    fn emit_owned_str(&self, v: &str) {
+    fn emit_str(&self, v: &str) {
         self.wr.write_str (escape_str(v)); }
-    fn emit_managed_str(&self, v: &str) { self.emit_owned_str(v); }
-
-    fn emit_borrowed(&self, f: &fn()) {  f() }
-    fn emit_owned(&self, f: &fn()) {  f() }
-    fn emit_managed(&self, f: &fn()) {  f() }
 
     fn emit_enum(&self, _name: &str, f: &fn()) {
         f(); }
@@ -162,25 +159,15 @@ impl std::serialize::Encoder for Encoder {
     }
 
     // 'v' is for vector
-    fn emit_borrowed_vec(&self, _len: uint, f: &fn()) {
+    fn emit_seq(&self, _len: uint, f: &fn()) {
         self.wr.write_str (~"(v");
         f();
         self.wr.write_char (')');
     }
 
-    fn emit_owned_vec(&self, len: uint, f: &fn()) {
-        self.emit_borrowed_vec(len,f);
-    }
-    fn emit_managed_vec(&self, len: uint, f: &fn()) {
-        self.emit_borrowed_vec(len,f);
-    }
-    fn emit_vec_elt(&self, _idx: uint, f: &fn()) {
+    fn emit_seq_elt(&self, _idx: uint, f: &fn()) {
         self.wr.write_char (' ');
         f();
-    }
-
-    fn emit_rec(&self, f: &fn()) {
-        unimpl(~"rec"); f();
     }
 
     // 's' is for struct
@@ -212,13 +199,16 @@ mod test {
 
     extern mod syntax;
     use super::Encoder;
+    use serialize;
     use super::*;
-    use std;
+    use core::io;
+    use core::str;
+    use core::io::Writer;
 
     // easier to write tests that use auto_encode....
-    fn to_sexp_str<E : std::serialize::Encodable<Encoder>>(v : E) -> ~str{
-        let bw = @io::BytesWriter {bytes: dvec::DVec(), pos: 0};
-        let bww : @io::Writer = (bw as @io::Writer);
+    fn to_sexp_str<E : serialize::Encodable<Encoder>>(v : E) -> ~str{
+        let bw = @io::BytesWriter {bytes: ~[], pos: 0};
+        let bww : @Writer = (bw as @Writer);
         let e = Encoder(bww);
         v.encode(&e);
         str::from_bytes(bw.bytes.data)
@@ -275,6 +265,7 @@ mod test {
     }
 
     type allNums = (uint,u64,u32,u16,u8,int,i64,i32,i16,i8);
+
 
     #[test]
     fn test_write_nums(){
