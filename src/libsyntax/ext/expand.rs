@@ -569,8 +569,10 @@ fn fun_to_path_folder(f: @fn(&ast::Path)->ast::Path) -> @ast_fold{
     };
     make_fold(f_pre)
 }
-/* going to have to figure out whether the table is passed in or
-extracted from TLS...
+
+//going to have to figure out whether the table is passed in or
+//extracted from TLS...
+
 // update the ctxts in a path to get a rename node
 fn ctxt_update_rename(from: ast::Name,
                        fromctx: ast::SyntaxContext, to: ast::Name) ->
@@ -604,7 +606,7 @@ fn ctxt_update_mark(mark: uint) ->
                rp: p.rp,
                types: p.types};
 }
-*/
+
 
 #[cfg(test)]
 mod test {
@@ -719,6 +721,11 @@ mod test {
             }
         }
     }
+
+/*    #[test]
+    fn renaming () {
+        let ast = string_to_expr()
+    }*/
 
 }
 
