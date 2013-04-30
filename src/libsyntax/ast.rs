@@ -19,6 +19,7 @@ use core::option::{None, Option, Some};
 use core::task;
 use core::to_bytes;
 use core::to_str::ToStr;
+use core::hashmap::HashMap;
 use std::serialize::{Encodable, Decodable, Encoder, Decoder};
 
 
@@ -38,13 +39,17 @@ pub struct ident { repr: Name, ctxt: SyntaxContext }
 // that's causing unreleased memory to cause core dumps
 // and also perhaps to save some work in destructor checks.
 // the special uint '0' will be used to indicate an empty
-// syntax context
+// syntax context.
 
 // this uint is a reference to a table stored in thread-local
 // storage.
 pub type SyntaxContext = uint;
 
-pub type SCTable = ~[SyntaxContext_];
+pub struct SCTable {
+    table : ~[SyntaxContext_],
+    mark_memo : HashMap<(SyntaxContext,Mrk),SyntaxContext>,
+    rename_memo : HashMap<(SyntaxContext,ident,Name),SyntaxContext>
+}
 pub static empty_ctxt : uint = 0;
 
 #[deriving(Eq)]

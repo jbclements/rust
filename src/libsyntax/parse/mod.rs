@@ -346,22 +346,16 @@ mod test {
     use std::serialize::Encodable;
     use std;
     use core::io;
-    use core::option::Option;
     use core::option::Some;
     use core::option::None;
-    use core::int;
-    use core::num::NumCast;
-    use core::path::Path;
-    use codemap::{dummy_sp, CodeMap, span, BytePos, spanned};
+    use codemap::{span, BytePos, spanned};
     use opt_vec;
     use ast;
     use abi;
     use ast_util::mk_ident;
     use parse::parser::Parser;
-    use parse::token::{ident_interner, mk_ident_interner, mk_fresh_ident_interner};
-    use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
     use util::parser_testing::{string_to_tts_and_sess,string_to_parser};
-    use util::parser_testing::{string_to_crate, string_to_expr, string_to_item};
+    use util::parser_testing::{string_to_expr, string_to_item};
     use util::parser_testing::{string_to_stmt};
 
 

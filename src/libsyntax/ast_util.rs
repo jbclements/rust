@@ -15,6 +15,7 @@ use codemap::{span, spanned};
 use parse::token;
 use visit;
 use opt_vec;
+use core::hashmap::HashMap;
 
 use core::to_bytes;
 
@@ -576,19 +577,57 @@ pub enum Privacy {
 pub fn mk_ident(repr: uint) -> ident { ident {repr: repr, ctxt: 0}}
 
 /// Extend a syntax context with a given mark
-pub fn mk_mark (m:Mrk,ctxt:SyntaxContext,table:&mut SCTable)
+pub fn mk_mark (m:Mrk, tail:SyntaxContext,table:&mut SCTable)
     -> SyntaxContext {
-    idx_push(table,Mark(m,ctxt))
+    let key = (tail,m);
+    // FIXME #5074 : can't use more natural style because we're missing
+    // flow-sensitivity. Results in two lookups on a hash table hit.
+    // also applies to mk_rename, below.
+    // let try_lookup = table.mark_memo.find(&key);
+    match table.mark_memo.contains_key(&key) {
+        false => {
+            let new_idx = idx_push(&mut table.table,Mark(m,tail));
+            table.mark_memo.insert(key,new_idx);
+            new_idx
+        }
+        true => {
+            match table.mark_memo.find(&key) {
+                None => fail!(~"internal error: key disappeared 2013042901"),
+                Some(idxptr) => {*idxptr}
+            }
+        }
+    }
 }
 
 /// Extend a syntax context with a given rename
 pub fn mk_rename (id:ident, to:Name, tail:SyntaxContext, table: &mut SCTable)
     -> SyntaxContext {
-    idx_push(table,Rename(id,to,tail))
+    let key = (tail,id,to);
+    // FIXME #5074
+    //let try_lookup = table.rename_memo.find(&key);
+    match table.rename_memo.contains_key(&key) {
+        false => {
+            let new_idx = idx_push(&mut table.table,Rename(id,to,tail));
+            table.rename_memo.insert(key,new_idx);
+            new_idx
+        }
+        true => {
+            match table.rename_memo.find(&key) {
+                None => fail!(~"internal error: key disappeared 2013042902"),
+                Some(idxptr) => {*idxptr}
+            }
+        }
+    }
 }
 
 /// Make a fresh syntax context table with EmptyCtxt in slot zero
-pub fn mk_sctable() -> SCTable { ~[EmptyCtxt] }
+pub fn mk_sctable() -> SCTable {
+    SCTable {
+        table: ~[EmptyCtxt],
+        mark_memo: HashMap::new(),
+        rename_memo: HashMap::new()
+    }
+}
 
 /// Add a value to the end of a vec, return its index
 fn idx_push<T>(vec: &mut ~[T], val: T) -> uint {
@@ -598,7 +637,7 @@ fn idx_push<T>(vec: &mut ~[T], val: T) -> uint {
 
 /// Resolve a syntax object to a name, per MTWT.
 pub fn resolve (id : ident, table : &SCTable) -> Name {
-    match table[id.ctxt] {
+    match table.table[id.ctxt] {
         EmptyCtxt => id.repr,
         // ignore marks here:
         Mark(_,subctxt) => resolve (ident{repr:id.repr, ctxt: subctxt},table),
@@ -625,7 +664,7 @@ pub fn marksof(ctxt: SyntaxContext, stopname: Name, table: &SCTable) -> ~[Mrk] {
     let mut result = ~[];
     let mut loopvar = ctxt;
     loop {
-        match table[loopvar] {
+        match table.table[loopvar] {
             EmptyCtxt => {return result;},
             Mark(mark,tl) => {
                 xorPush(&mut result,mark);
@@ -717,7 +756,7 @@ mod test {
     fn refold_test_sc(mut sc: SyntaxContext, table : &SCTable) -> ~[TestSC] {
         let mut result = ~[];
         loop {
-            match table[sc] {
+            match table.table[sc] {
                 EmptyCtxt => {return result;},
                 Mark(mrk,tail) => {
                     result.push(M(mrk));
@@ -738,9 +777,9 @@ mod test {
 
         let test_sc = ~[M(3),R(id(101,0),14),M(9)];
         assert_eq!(unfold_test_sc(test_sc,empty_ctxt,&mut t),3);
-        assert_eq!(t[1],Mark(9,0));
-        assert_eq!(t[2],Rename(id(101,0),14,1));
-        assert_eq!(t[3],Mark(3,2));
+        assert_eq!(t.table[1],Mark(9,0));
+        assert_eq!(t.table[2],Rename(id(101,0),14,1));
+        assert_eq!(t.table[3],Mark(3,2));
         assert_eq!(refold_test_sc(3,&t),test_sc);
     }
 
@@ -752,11 +791,11 @@ mod test {
     }
 
     #[test] fn unfold_marks_test() {
-        let mut t = ~[EmptyCtxt];
+        let mut t = mk_sctable();
 
         assert_eq!(unfold_marks(~[3,7],empty_ctxt,&mut t),2);
-        assert_eq!(t[1],Mark(7,0));
-        assert_eq!(t[2],Mark(3,1));
+        assert_eq!(t.table[1],Mark(7,0));
+        assert_eq!(t.table[2],Mark(3,1));
     }
 
     #[test] fn test_marksof () {
@@ -839,6 +878,15 @@ mod test {
                                            a_to_a50,
                                            &mut t);
          assert_eq!(resolve(id(a,a50_to_a51_b),&t),50);}
+    }
+
+    #[test] fn hashing_tests () {
+        let mut t = mk_sctable();
+        assert_eq!(mk_mark(12,empty_ctxt,&mut t),1);
+        assert_eq!(mk_mark(13,empty_ctxt,&mut t),2);
+        // using the same one again should result in the same index:
+        assert_eq!(mk_mark(12,empty_ctxt,&mut t),1);
+        // I'm assuming that the rename table will behave the same....
     }
 
 }

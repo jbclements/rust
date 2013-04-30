@@ -8,22 +8,16 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::serialize::Encodable;
-use std;
-use core::io;
 use core::option::{Option,None};
 use core::int;
 use core::num::NumCast;
-use codemap::{dummy_sp, CodeMap, BytePos, spanned};
-use opt_vec;
+use codemap::CodeMap;
 use ast;
-use abi;
-use ast_util::mk_ident;
 use parse::parser::Parser;
-use parse::token::{ident_interner, mk_ident_interner, mk_fresh_ident_interner};
-use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
+use parse::token::{ident_interner, mk_fresh_ident_interner};
+use diagnostic::{mk_handler, mk_span_handler};
 
-use syntax::parse::{ParseSess,new_parse_sess,string_to_filemap,filemap_to_tts};
+use syntax::parse::{ParseSess,string_to_filemap,filemap_to_tts};
 use syntax::parse::{new_parser_from_source_str};
 
 // add known names to interner for testing

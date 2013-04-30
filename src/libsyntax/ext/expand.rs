@@ -11,7 +11,9 @@
 use ast::{blk_, attribute_, attr_outer, meta_word};
 use ast::{crate, expr_, expr_mac, mac_invoc_tt};
 use ast::{item_mac, stmt_, stmt_mac, stmt_expr, stmt_semi};
+use ast::{SCTable};
 use ast;
+use ast_util::{mk_rename, mk_mark};
 use attr;
 use codemap;
 use codemap::{span, CallInfo, ExpandedFrom, NameAndSpan, spanned};
@@ -624,12 +626,10 @@ fn fun_to_path_folder(f: @fn(&ast::Path)->ast::Path) -> @ast_fold{
     make_fold(f_pre)
 }
 
-//going to have to figure out whether the table is passed in or
-//extracted from TLS...
-
 // update the ctxts in a path to get a rename node
-fn ctxt_update_rename(from: ast::Name,
-                       fromctx: ast::SyntaxContext, to: ast::Name) ->
+fn ctxt_update_rename(from: ast::ident,
+                      to: ast::Name,
+                      table: @mut SCTable) ->
     @fn(&ast::Path,@ast_fold)->ast::Path {
     return |p:&ast::Path,_|
     ast::Path {span: p.span,
@@ -637,16 +637,16 @@ fn ctxt_update_rename(from: ast::Name,
                idents: p.idents.map(|id|
                                     ast::ident{
                                         repr: id.repr,
-                                        // this needs to be cached....
-                                        ctxt: Some(@ast::Rename(from,fromctx,
-                                                           to,id.ctxt))
+                                        ctxt: mk_rename(from,to,id.ctxt,table)
                                     }),
                rp: p.rp,
                types: p.types};
 }
 
+
 // update the ctxts in a path to get a mark node
-fn ctxt_update_mark(mark: uint) ->
+fn ctxt_update_mark(mark: uint,
+                    table: @mut SCTable) ->
     @fn(&ast::Path,@ast_fold)->ast::Path {
     return |p:&ast::Path,_|
     ast::Path {span: p.span,
@@ -654,8 +654,7 @@ fn ctxt_update_mark(mark: uint) ->
                idents: p.idents.map(|id|
                                     ast::ident{
                                         repr: id.repr,
-                                        // this needs to be cached....
-                                        ctxt: Some(@ast::Mark(mark,id.ctxt))
+                                        ctxt: mk_mark(mark,id.ctxt,table)
                                     }),
                rp: p.rp,
                types: p.types};
@@ -671,6 +670,7 @@ mod test {
     use codemap::spanned;
     use parse;
     use core::option::{None, Some};
+    use util::parser_testing::{string_to_item};
 
     // make sure that fail! is present
     #[test] fn fail_exists_test () {
@@ -776,9 +776,9 @@ mod test {
         }
     }
 
-/*    #[test]
+    #[test]
     fn renaming () {
-        let ast = string_to_expr()
-    }*/
+        let ast = string_to_item(@~"fn f() -> int { let x = 13; x} ");
+    }
 
 }
