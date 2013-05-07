@@ -19,7 +19,7 @@ use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
 use parse::attr::parser_attr;
 use parse::lexer::reader;
 use parse::parser::Parser;
-use parse::token::{ident_interner, mk_ident_interner};
+use parse::token::{ident_interner, get_ident_interner};
 
 use core::io;
 use core::option::{None, Option, Some};
@@ -59,7 +59,7 @@ pub fn new_parse_sess(demitter: Option<Emitter>) -> @mut ParseSess {
         cm: cm,
         next_id: 1,
         span_diagnostic: mk_span_handler(mk_handler(demitter), cm),
-        interner: mk_ident_interner(),
+        interner: get_ident_interner(),
     }
 }
 
@@ -70,7 +70,7 @@ pub fn new_parse_sess_special_handler(sh: @span_handler,
         cm: cm,
         next_id: 1,
         span_diagnostic: sh,
-        interner: mk_ident_interner(),
+        interner: get_ident_interner(),
     }
 }
 
@@ -352,8 +352,8 @@ mod test {
     use opt_vec;
     use ast;
     use abi;
-    use ast_util::new_ident;
     use parse::parser::Parser;
+    use parse::token::intern;
     use util::parser_testing::{string_to_tts_and_sess,string_to_parser};
     use util::parser_testing::{string_to_expr, string_to_item};
     use util::parser_testing::{string_to_stmt};
@@ -361,7 +361,7 @@ mod test {
 
     // map a string to tts, return the tt without its parsesess
     fn string_to_tts_only(source_str : @~str) -> ~[ast::token_tree] {
-        let (tts,ps) = string_to_tts_and_sess(source_str);
+        let (tts,_) = string_to_tts_and_sess(source_str);
         tts
     }
 
@@ -379,8 +379,8 @@ mod test {
     }
 
     // convert a vector of uints to a vector of ast::idents
-    fn ints_to_idents(ids: ~[uint]) -> ~[ast::ident] {
-        ids.map(|u| new_ident(*u))
+    fn ints_to_idents(ids: ~[@~str]) -> ~[ast::ident] {
+        ids.map(|u| intern(*u))
     }
 
     #[test] fn path_exprs_1 () {
@@ -389,7 +389,7 @@ mod test {
                               callee_id:2,
                               node:ast::expr_path(@ast::Path {span:sp(0,1),
                                                               global:false,
-                                                              idents:~[new_ident(100)],
+                                                              idents:~[intern(@~"a")],
                                                               rp:None,
                                                               types:~[]}),
                               span:sp(0,1)})
@@ -399,11 +399,12 @@ mod test {
         assert_eq!(string_to_expr(@~"::a::b"),
                    @ast::expr{id:1,
                                callee_id:2,
-                               node:ast::expr_path(@ast::Path {span:sp(0,6),
-                                                               global:true,
-                                                               idents:ints_to_idents(~[100,101]),
-                                                               rp:None,
-                                                               types:~[]}),
+                               node:ast::expr_path(
+                                   @ast::Path {span:sp(0,6),
+                                               global:true,
+                                               idents:ints_to_idents(~[@~"a",@~"b"]),
+                                               rp:None,
+                                               types:~[]}),
                               span:sp(0,6)})
     }
 
@@ -413,7 +414,7 @@ mod test {
     }
 
     #[test] fn string_to_tts_1 () {
-        let (tts,ps) = string_to_tts_and_sess(@~"fn a (b : int) { b; }");
+        let (tts,_) = string_to_tts_and_sess(@~"fn a (b : int) { b; }");
         assert_eq!(to_json_str(@tts),
                    ~"[\
                 [\"tt_tok\",null,[\"IDENT\",\"fn\",false]],\
@@ -450,7 +451,7 @@ mod test {
                                                   node:ast::expr_path(
                                                       @ast::Path{span:sp(7,8),
                                                                  global:false,
-                                                                 idents:~[new_ident(103)],
+                                                                 idents:~[intern(@~"d")],
                                                                  rp:None,
                                                                  types:~[]
                                                                 }),
@@ -468,7 +469,7 @@ mod test {
                                @ast::Path{
                                    span:sp(0,1),
                                    global:false,
-                                   idents:~[new_ident(101)],
+                                   idents:~[intern(@~"b")],
                                    rp:None,
                                    types: ~[]}),
                            span: sp(0,1)},
@@ -489,7 +490,7 @@ mod test {
                                                   @ast::Path{
                                                       span:sp(0,1),
                                                       global:false,
-                                                      idents:~[new_ident(101)],
+                                                      idents:~[intern(@~"b")],
                                                       rp: None,
                                                       types: ~[]},
                                                   None // no idea
@@ -508,7 +509,7 @@ mod test {
                                         span:sp(4,4), // this is bizarre...
                                         // check this in the original parser?
                                         global:false,
-                                        idents:~[new_ident(105)],
+                                        idents:~[intern(@~"int")],
                                         rp: None,
                                         types: ~[]},
                                                        2),
@@ -518,7 +519,7 @@ mod test {
                                                            @ast::Path{
                                                                span:sp(0,1),
                                                                global:false,
-                                                               idents:~[new_ident(101)],
+                                                               idents:~[intern(@~"b")],
                                                                rp: None,
                                                                types: ~[]},
                                                            None // no idea
@@ -534,7 +535,7 @@ mod test {
         // assignment order of the node_ids.
         assert_eq!(string_to_item(@~"fn a (b : int) { b; }"),
                   Some(
-                      @ast::item{ident:new_ident(100),
+                      @ast::item{ident:intern(@~"a"),
                             attrs:~[],
                             id: 10, // fixme
                             node: ast::item_fn(ast::fn_decl{
@@ -544,7 +545,7 @@ mod test {
                                                 node: ast::ty_path(@ast::Path{
                                         span:sp(10,13),
                                         global:false,
-                                        idents:~[new_ident(106)],
+                                        idents:~[intern(@~"int")],
                                         rp: None,
                                         types: ~[]},
                                                        2),
@@ -555,7 +556,7 @@ mod test {
                                                        @ast::Path{
                                                            span:sp(6,7),
                                                            global:false,
-                                                           idents:~[new_ident(101)],
+                                                           idents:~[intern(@~"b")],
                                                            rp: None,
                                                            types: ~[]},
                                                        None // no idea
@@ -586,7 +587,7 @@ mod test {
                                                         @ast::Path{
                                                             span:sp(17,18),
                                                             global:false,
-                                                            idents:~[new_ident(101)],
+                                                            idents:~[intern(@~"b")],
                                                             rp:None,
                                                             types: ~[]}),
                                                     span: sp(17,18)},
