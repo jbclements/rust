@@ -68,7 +68,7 @@ pub enum SyntaxContext_ {
     // in the "from" slot. In essence, they're all
     // pointers to a single "rename" event node.
     Rename (ident,Name,SyntaxContext),
-    IllegalCtxt()    
+    IllegalCtxt()
 }
 
 // a name represents an identifier
@@ -418,6 +418,7 @@ pub type stmt = spanned<stmt_>;
 #[auto_decode]
 #[deriving(Eq)]
 pub enum stmt_ {
+    // could be an item or a local (let) binding:
     stmt_decl(@decl, node_id),
 
     // expr without trailing semi-colon (must have unit type):
@@ -450,7 +451,11 @@ pub type decl = spanned<decl_>;
 #[auto_encode]
 #[auto_decode]
 #[deriving(Eq)]
-pub enum decl_ { decl_local(~[@local]), decl_item(@item), }
+pub enum decl_ {
+    // a local (let) binding:
+    decl_local(~[@local]),
+    // an item binding:
+    decl_item(@item), }
 
 #[auto_encode]
 #[auto_decode]
