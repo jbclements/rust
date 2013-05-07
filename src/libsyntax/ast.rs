@@ -381,6 +381,7 @@ pub type stmt = spanned<stmt_>;
 
 #[deriving(Eq, Encodable, Decodable)]
 pub enum stmt_ {
+    // could be an item or a local (let) binding:
     stmt_decl(@decl, node_id),
 
     // expr without trailing semi-colon (must have unit type):
@@ -409,7 +410,11 @@ pub type local = spanned<local_>;
 pub type decl = spanned<decl_>;
 
 #[deriving(Eq, Encodable, Decodable)]
-pub enum decl_ { decl_local(~[@local]), decl_item(@item), }
+pub enum decl_ {
+    // a local (let) binding:
+    decl_local(~[@local]),
+    // an item binding:
+    decl_item(@item), }
 
 #[deriving(Eq, Encodable, Decodable)]
 pub struct arm {
