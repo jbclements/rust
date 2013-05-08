@@ -13,7 +13,7 @@ use ast::{crate, expr_, expr_mac, mac_invoc_tt};
 use ast::{item_mac, stmt_, stmt_mac, stmt_expr, stmt_semi};
 use ast::{SCTable, illegal_ctxt};
 use ast;
-use ast_util::{new_rename, new_mark, resolve};
+use ast_util::{new_rename, new_mark, resolve, new_sctable};
 use attr;
 use codemap;
 use codemap::{span, CallInfo, ExpandedFrom, NameAndSpan, spanned};
@@ -393,6 +393,96 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
                          ~"expected ScopeMacros binding for \" block\"")
     }
 }
+
+/*
+// expand the statements one at a time, doing renaming
+// when we encounter a 'let'
+pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
+                          cx: @ext_ctxt,
+                          blk: &blk_,
+                          sp: span,
+                          fld: @ast_fold
+                         ) -> (blk_, span) {
+    let new_view_items = b.view_items.map(|x| fld.fold_view_item(*x));
+    // we're going to be lazy about the renames; storing the pending renames
+    // in a mutable vector, and applying them to statements as we go through
+    // the list
+    let pending_renames = @mut ~[];
+    let mut rename_fld = renames_to_fold(pending_renames);
+    let new_stmts = do b.stmts.map |stmt| {
+        // apply the pending renames
+        let stmt = rename_fld.fold_stmt(stmt);
+        // expand the statement:
+        let stmt = fld.fold_stmt(stmt);
+        // is it a let?
+        match stmt {
+            spanned{node: stmt_decl(spanned{node: }, _), ..._} => {
+
+            }
+            let_stmt(ident,rhs) => {
+                let new_name = make_fresh_name(ident.repr);
+                pending_renames.push((ident,new_name));
+                let_stmt(rename(ident,ident,new_name),rhs)
+            }
+            _ => stmt
+        }
+    };
+    // there are 0 or 1 of these:
+    let new_expr = do b.expr.map |x| {
+        fld.fold_expr(rename_fld.fold_expr(expr))
+    }
+    ast::blk_ {
+        view_items : new_view_items,
+        stmts : new_stmts,
+        expr : new_expr,
+        id: fld.new_id(b.id),
+        rules: b.rules
+    }
+}
+*/
+
+// given a mutable list of renames, return a tree-folder that applies those
+// renames.
+fn renames_to_fold(renames : @mut ~[(ast::ident,ast::Name)]) -> @ast_fold {
+    let table = local_sctable_get();
+    let afp = default_ast_fold();
+    let f_pre = @AstFoldFns {
+        fold_ident: |id,_| {
+            // the individual elements are memoized... it would
+            // also be possible to memoize on the whole list at once.
+            let new_ctxt = renames.foldl(id.ctxt,|ctxt,&(from,to)| {
+                new_rename(from,to,*ctxt,table)
+            });
+            ast::ident{repr:id.repr,ctxt:new_ctxt}
+        },
+        .. *afp
+    };
+    make_fold(f_pre)
+}
+
+// perform a bunch of renames
+fn apply_pending_renames(folder : @ast_fold, stmt : ast::stmt) -> @ast::stmt {
+    folder.fold_stmt(&stmt)
+}
+
+// fetch the SCTable from TLS, create one if it doesn't yet exist.
+fn local_sctable_get() -> @mut SCTable {
+    unsafe {
+        let sctable_key = (cast::transmute::<(uint, uint),
+                           &fn(v: @@mut SCTable)>(
+                               (-4 as uint, 0u)));
+        match task::local_data::local_data_get(sctable_key) {
+            None => {
+                let new_table = @@mut new_sctable();
+                task::local_data::local_data_set(sctable_key,new_table);
+                *new_table
+            },
+            Some(intr) => *intr
+        }
+    }
+}
+
+
 
 pub fn new_span(cx: @ext_ctxt, sp: span) -> span {
     /* this discards information in the case of macro-defining macros */
