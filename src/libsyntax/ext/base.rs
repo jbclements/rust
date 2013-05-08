@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use ast;
+use ast::Name;
 use codemap;
 use codemap::{CodeMap, span, ExpnInfo, ExpandedFrom};
 use codemap::CallInfo;
@@ -88,28 +89,32 @@ pub enum SyntaxExtension {
     IdentTT(SyntaxExpanderTTItem),
 }
 
+// The SyntaxEnv is the environment that's threaded through the expansion
+// of macros. It contains bindings for macros, and also a special binding
+// for " block" (not a legal identifier) that maps to a BlockInfo
 pub type SyntaxEnv = @mut MapChain<Name, Transformer>;
 
-// Name : the domain of SyntaxEnvs
-// want to change these to uints....
-// note that we use certain strings that are not legal as identifiers
-// to indicate, for instance, how blocks are supposed to behave.
-type Name = @~str;
-
 // Transformer : the codomain of SyntaxEnvs
-
-// NB: it may seem crazy to lump both of these into one environment;
-// what would it mean to bind "foo" to BlockLimit(true)? The idea
-// is that this follows the lead of MTWT, and accommodates growth
-// toward a more uniform syntax syntax (sorry) where blocks are just
-// another kind of transformer.
 
 pub enum Transformer {
     // this identifier maps to a syntax extension or macro
     SE(SyntaxExtension),
-    // should blocks occurring here limit macro scopes?
-    ScopeMacros(bool)
+    // blockinfo : this is ... well, it's simpler than threading
+    // another whole data stack-structured data structure through
+    // expansion. Basically, there's an invariant that every
+    // map must contain a binding for " block".
+    BlockInfo(BlockInfo)
 }
+
+struct BlockInfo {
+    // should macros escape from this scope?
+    macros_escape : bool,
+    // what are the pending renames?
+    pending_renames : @mut RenameList
+}
+
+// a list of ident->name renamings
+type RenameList = ~[(ast::ident,Name)];
 
 // The base map of methods for expanding syntax extension
 // AST nodes into full ASTs
@@ -125,7 +130,10 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     let mut syntax_expanders = HashMap::new();
     // NB identifier starts with space, and can't conflict with legal idents
     syntax_expanders.insert(@~" block",
-                            @ScopeMacros(true));
+                            @BlockInfo(BlockInfo{
+                                macros_escape : false,
+                                pending_renames : @~[]
+                            }));
     syntax_expanders.insert(@~"macro_rules",
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
