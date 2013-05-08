@@ -21,6 +21,7 @@ use ext::base::*;
 use fold::*;
 use parse;
 use parse::{parse_item_from_source_str};
+use parse::token::{get_ident_interner,intern};
 
 pub fn expand_expr(extsbox: @mut SyntaxEnv,
                    cx: @ext_ctxt,
@@ -43,15 +44,14 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv,
                             fmt!("expected macro name without module \
                                   separators"));
                     }
-                    /* using idents and token::special_idents would make the
-                    the macro names be hygienic */
-                    let extname = cx.parse_sess().interner.get(pth.idents[0]);
+                    let extname = pth.idents[0];
+                    let extnamestr = get_ident_interner().get(extname);
                     // leaving explicit deref here to highlight unbox op:
-                    match (*extsbox).find(&extname) {
+                    match (*extsbox).find(&extname.repr) {
                         None => {
                             cx.span_fatal(
                                 pth.span,
-                                fmt!("macro undefined: '%s'", *extname))
+                                fmt!("macro undefined: '%s'", *extnamestr))
                         }
                         Some(@SE(NormalTT(SyntaxExpanderTT{
                             expander: exp,
@@ -60,7 +60,7 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv,
                             cx.bt_push(ExpandedFrom(CallInfo {
                                 call_site: s,
                                 callee: NameAndSpan {
-                                    name: copy *extname,
+                                    name: copy *extnamestr,
                                     span: exp_sp,
                                 },
                             }));
@@ -73,7 +73,7 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv,
                                         pth.span,
                                         fmt!(
                                             "non-expr macro in expr pos: %s",
-                                            *extname
+                                            *extnamestr
                                         )
                                     )
                                 }
@@ -89,7 +89,7 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv,
                         _ => {
                             cx.span_fatal(
                                 pth.span,
-                                fmt!("'%s' is not a tt-style macro", *extname)
+                                fmt!("'%s' is not a tt-style macro", *extnamestr)
                             )
                         }
                     }
@@ -127,7 +127,7 @@ pub fn expand_mod_items(extsbox: @mut SyntaxEnv,
         do vec::foldr(item.attrs, ~[*item]) |attr, items| {
             let mname = attr::get_attr_name(attr);
 
-            match (*extsbox).find(&mname) {
+            match (*extsbox).find(&intern(mname)) {
               Some(@SE(ItemDecorator(dec_fn))) => {
                   cx.bt_push(ExpandedFrom(CallInfo {
                       call_site: attr.span,
@@ -151,10 +151,12 @@ pub fn expand_mod_items(extsbox: @mut SyntaxEnv,
 
 // eval $e with a new exts frame:
 macro_rules! with_exts_frame (
-    ($extsboxexpr:expr,$e:expr) =>
+    ($extsboxexpr:expr,$macros_escape:expr,$e:expr) =>
     ({let extsbox = $extsboxexpr;
       let oldexts = *extsbox;
       *extsbox = oldexts.push_frame();
+      extsbox.insert(intern(@~" block"),
+                     @BlockInfo(BlockInfo{macros_escape:$macros_escape,pending_renames:@mut ~[]}));
       let result = $e;
       *extsbox = oldexts;
       result
@@ -178,14 +180,8 @@ pub fn expand_item(extsbox: @mut SyntaxEnv,
           match it.node {
               ast::item_mod(_) | ast::item_foreign_mod(_) => {
                   cx.mod_push(it.ident);
-                  let result =
-                      // don't push a macro scope for macro_escape:
-                      if contains_macro_escape(it.attrs) {
-                      orig(it,fld)
-                  } else {
-                      // otherwise, push a scope:
-                      with_exts_frame!(extsbox,orig(it,fld))
-                  };
+                  let macro_escape = contains_macro_escape(it.attrs);
+                  let result = with_exts_frame!(extsbox,macro_escape,orig(it,fld));
                   cx.mod_pop();
                   result
               }
@@ -211,31 +207,6 @@ pub fn contains_macro_escape (attrs: &[ast::attribute]) -> bool{
     accum
 }
 
-// this macro disables (one layer of) macro
-// scoping, to allow a block to add macro bindings
-// to its parent env
-macro_rules! without_macro_scoping(
-    ($extsexpr:expr,$exp:expr) =>
-    ({
-        // only evaluate this once:
-        let exts = $extsexpr;
-        // capture the existing binding:
-        let existingBlockBinding =
-            match exts.find(&@~" block"){
-                Some(binding) => binding,
-                None => cx.bug("expected to find \" block\" binding")
-            };
-        // this prevents the block from limiting the macros' scope:
-        exts.insert(@~" block",@ScopeMacros(false));
-        let result = $exp;
-        // reset the block binding. Note that since the original
-        // one may have been inherited, this procedure may wind
-        // up introducing a block binding where one didn't exist
-        // before.
-        exts.insert(@~" block",existingBlockBinding);
-        result
-    }))
-
 // Support for item-position macro invocations, exactly the same
 // logic as for expression-position macro invocations.
 pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
@@ -249,22 +220,24 @@ pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
         _ => cx.span_bug(it.span, ~"invalid item macro invocation")
     };
 
-    let extname = cx.parse_sess().interner.get(pth.idents[0]);
-    let expanded = match (*extsbox).find(&extname) {
+    let extname = pth.idents[0];
+    let interner = get_ident_interner();
+    let extnamestr = interner.get(extname);
+    let expanded = match (*extsbox).find(&extname.repr) {
         None => cx.span_fatal(pth.span,
-                              fmt!("macro undefined: '%s!'", *extname)),
+                              fmt!("macro undefined: '%s!'", *extnamestr)),
 
         Some(@SE(NormalTT(ref expand))) => {
             if it.ident != parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects no ident argument, \
-                                    given '%s'", *extname,
-                                   *cx.parse_sess().interner.get(it.ident)));
+                                    given '%s'", *extnamestr,
+                                   *interner.get(it.ident)));
             }
             cx.bt_push(ExpandedFrom(CallInfo {
                 call_site: it.span,
                 callee: NameAndSpan {
-                    name: copy *extname,
+                    name: copy *extnamestr,
                     span: expand.span
                 }
             }));
@@ -274,34 +247,51 @@ pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
             if it.ident == parse::token::special_idents::invalid {
                 cx.span_fatal(pth.span,
                               fmt!("macro %s! expects an ident argument",
-                                   *extname));
+                                   *extnamestr));
             }
             cx.bt_push(ExpandedFrom(CallInfo {
                 call_site: it.span,
                 callee: NameAndSpan {
-                    name: copy *extname,
+                    name: copy *extnamestr,
                     span: expand.span
                 }
             }));
             ((*expand).expander)(cx, it.span, it.ident, tts)
         }
         _ => cx.span_fatal(
-            it.span, fmt!("%s! is not legal in item position", *extname))
+            it.span, fmt!("%s! is not legal in item position", *extnamestr))
     };
 
     let maybe_it = match expanded {
         MRItem(it) => fld.fold_item(it),
         MRExpr(_) => cx.span_fatal(pth.span,
                                     ~"expr macro in item position: "
-                                    + *extname),
+                                    + *extnamestr),
         MRAny(_, item_maker, _) => item_maker().chain(|i| {fld.fold_item(i)}),
         MRDef(ref mdef) => {
-            extsbox.insert(@/*bad*/ copy mdef.name, @SE((*mdef).ext));
+            insert_macro(*extsbox,intern(@mdef.name), @SE((*mdef).ext));
             None
         }
     };
     cx.bt_pop();
     return maybe_it;
+}
+
+
+// insert a macro into the innermost frame that doesn't have the
+// macro_escape tag.
+fn insert_macro(exts: SyntaxEnv, name: ast::Name, transformer: @Transformer) {
+    let block_err_msg = ~"special identifier ' block' was bound to a non-BlockInfo";
+    let is_non_escaping_block =
+        |t : &@Transformer| -> bool{
+        match t {
+            &@BlockInfo(BlockInfo {macros_escape:false,_}) => true,
+            &@BlockInfo(BlockInfo {_}) => false,
+            _ => fail!(block_err_msg)
+        }
+    };
+    exts.insert_into_frame(name,transformer,intern(@~" block"),
+                           is_non_escaping_block)
 }
 
 // expand a stmt
@@ -328,16 +318,17 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
             fmt!("expected macro name without module \
                   separators"));
     }
-    let extname = cx.parse_sess().interner.get(pth.idents[0]);
-    let (fully_expanded, sp) = match (*extsbox).find(&extname) {
+    let extname = pth.idents[0];
+    let extnamestr = get_ident_interner().get(extname);
+    let (fully_expanded, sp) = match (*extsbox).find(&extname.repr) {
         None =>
-            cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extname)),
+            cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extnamestr)),
 
         Some(@SE(NormalTT(
             SyntaxExpanderTT{expander: exp, span: exp_sp}))) => {
             cx.bt_push(ExpandedFrom(CallInfo {
                 call_site: sp,
-                callee: NameAndSpan { name: copy *extname, span: exp_sp }
+                callee: NameAndSpan { name: copy *extnamestr, span: exp_sp }
             }));
             let expanded = match exp(cx, mac.span, tts) {
                 MRExpr(e) =>
@@ -346,7 +337,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
                 MRAny(_,_,stmt_mkr) => stmt_mkr(),
                 _ => cx.span_fatal(
                     pth.span,
-                    fmt!("non-stmt macro in stmt pos: %s", *extname))
+                    fmt!("non-stmt macro in stmt pos: %s", *extnamestr))
             };
 
             //keep going, outside-in
@@ -358,7 +349,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
 
         _ => {
             cx.span_fatal(pth.span,
-                          fmt!("'%s' is not a tt-style macro", *extname))
+                          fmt!("'%s' is not a tt-style macro", *extnamestr))
         }
     };
 
@@ -378,20 +369,8 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
                     fld: @ast_fold,
                     orig: @fn(&blk_, span, @ast_fold) -> (blk_, span))
                  -> (blk_, span) {
-    match (*extsbox).find(&@~" block") {
-        // no scope limit on macros in this block, no need
-        // to push an exts frame:
-        Some(@ScopeMacros(false)) => {
-            orig (blk,sp,fld)
-        },
-        // this block should limit the scope of its macros:
-        Some(@ScopeMacros(true)) => {
-            // see note below about treatment of exts table
-            with_exts_frame!(extsbox,orig(blk,sp,fld))
-        },
-        _ => cx.span_bug(sp,
-                         ~"expected ScopeMacros binding for \" block\"")
-    }
+    // see note below about treatment of exts table
+    with_exts_frame!(extsbox,false,orig(blk,sp,fld))
 }
 
 /*

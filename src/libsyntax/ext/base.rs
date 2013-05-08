@@ -17,6 +17,7 @@ use diagnostic::span_handler;
 use ext;
 use parse;
 use parse::token;
+use parse::token::{intern};
 
 use core::hashmap::HashMap;
 
@@ -106,7 +107,7 @@ pub enum Transformer {
     BlockInfo(BlockInfo)
 }
 
-struct BlockInfo {
+pub struct BlockInfo {
     // should macros escape from this scope?
     macros_escape : bool,
     // what are the pending renames?
@@ -129,87 +130,87 @@ pub fn syntax_expander_table() -> SyntaxEnv {
     }
     let mut syntax_expanders = HashMap::new();
     // NB identifier starts with space, and can't conflict with legal idents
-    syntax_expanders.insert(@~" block",
+    syntax_expanders.insert(intern(@~" block"),
                             @BlockInfo(BlockInfo{
                                 macros_escape : false,
-                                pending_renames : @~[]
+                                pending_renames : @mut ~[]
                             }));
-    syntax_expanders.insert(@~"macro_rules",
+    syntax_expanders.insert(intern(@~"macro_rules"),
                             builtin_item_tt(
                                 ext::tt::macro_rules::add_new_extension));
-    syntax_expanders.insert(@~"fmt",
+    syntax_expanders.insert(intern(@~"fmt"),
                             builtin_normal_tt(ext::fmt::expand_syntax_ext));
     syntax_expanders.insert(
-        @~"auto_encode",
+        intern(@~"auto_encode"),
         @SE(ItemDecorator(ext::auto_encode::expand_auto_encode)));
     syntax_expanders.insert(
-        @~"auto_decode",
+        intern(@~"auto_decode"),
         @SE(ItemDecorator(ext::auto_encode::expand_auto_decode)));
-    syntax_expanders.insert(@~"env",
+    syntax_expanders.insert(intern(@~"env"),
                             builtin_normal_tt(ext::env::expand_syntax_ext));
-    syntax_expanders.insert(@~"concat_idents",
+    syntax_expanders.insert(intern(@~"concat_idents"),
                             builtin_normal_tt(
                                 ext::concat_idents::expand_syntax_ext));
-    syntax_expanders.insert(@~"log_syntax",
+    syntax_expanders.insert(intern(@~"log_syntax"),
                             builtin_normal_tt(
                                 ext::log_syntax::expand_syntax_ext));
-    syntax_expanders.insert(@~"deriving",
+    syntax_expanders.insert(intern(@~"deriving"),
                             @SE(ItemDecorator(
                                 ext::deriving::expand_meta_deriving)));
-    syntax_expanders.insert(@~"deriving_eq",
+    syntax_expanders.insert(intern(@~"deriving_eq"),
                             @SE(ItemDecorator(
                                 ext::deriving::eq::expand_deriving_obsolete)));
-    syntax_expanders.insert(@~"deriving_iter_bytes",
+    syntax_expanders.insert(intern(@~"deriving_iter_bytes"),
                             @SE(ItemDecorator(
                                 ext::deriving::iter_bytes::expand_deriving_obsolete)));
-    syntax_expanders.insert(@~"deriving_clone",
+    syntax_expanders.insert(intern(@~"deriving_clone"),
                             @SE(ItemDecorator(
                                 ext::deriving::clone::expand_deriving_obsolete)));
 
     // Quasi-quoting expanders
-    syntax_expanders.insert(@~"quote_tokens",
+    syntax_expanders.insert(intern(@~"quote_tokens"),
                        builtin_normal_tt(ext::quote::expand_quote_tokens));
-    syntax_expanders.insert(@~"quote_expr",
+    syntax_expanders.insert(intern(@~"quote_expr"),
                        builtin_normal_tt(ext::quote::expand_quote_expr));
-    syntax_expanders.insert(@~"quote_ty",
+    syntax_expanders.insert(intern(@~"quote_ty"),
                        builtin_normal_tt(ext::quote::expand_quote_ty));
-    syntax_expanders.insert(@~"quote_item",
+    syntax_expanders.insert(intern(@~"quote_item"),
                        builtin_normal_tt(ext::quote::expand_quote_item));
-    syntax_expanders.insert(@~"quote_pat",
+    syntax_expanders.insert(intern(@~"quote_pat"),
                        builtin_normal_tt(ext::quote::expand_quote_pat));
-    syntax_expanders.insert(@~"quote_stmt",
+    syntax_expanders.insert(intern(@~"quote_stmt"),
                        builtin_normal_tt(ext::quote::expand_quote_stmt));
 
-    syntax_expanders.insert(@~"line",
+    syntax_expanders.insert(intern(@~"line"),
                             builtin_normal_tt(
                                 ext::source_util::expand_line));
-    syntax_expanders.insert(@~"col",
+    syntax_expanders.insert(intern(@~"col"),
                             builtin_normal_tt(
                                 ext::source_util::expand_col));
-    syntax_expanders.insert(@~"file",
+    syntax_expanders.insert(intern(@~"file"),
                             builtin_normal_tt(
                                 ext::source_util::expand_file));
-    syntax_expanders.insert(@~"stringify",
+    syntax_expanders.insert(intern(@~"stringify"),
                             builtin_normal_tt(
                                 ext::source_util::expand_stringify));
-    syntax_expanders.insert(@~"include",
+    syntax_expanders.insert(intern(@~"include"),
                             builtin_normal_tt(
                                 ext::source_util::expand_include));
-    syntax_expanders.insert(@~"include_str",
+    syntax_expanders.insert(intern(@~"include_str"),
                             builtin_normal_tt(
                                 ext::source_util::expand_include_str));
-    syntax_expanders.insert(@~"include_bin",
+    syntax_expanders.insert(intern(@~"include_bin"),
                             builtin_normal_tt(
                                 ext::source_util::expand_include_bin));
-    syntax_expanders.insert(@~"module_path",
+    syntax_expanders.insert(intern(@~"module_path"),
                             builtin_normal_tt(
                                 ext::source_util::expand_mod));
-    syntax_expanders.insert(@~"proto",
+    syntax_expanders.insert(intern(@~"proto"),
                             builtin_item_tt(ext::pipes::expand_proto));
-    syntax_expanders.insert(@~"asm",
+    syntax_expanders.insert(intern(@~"asm"),
                             builtin_normal_tt(ext::asm::expand_asm));
     syntax_expanders.insert(
-        @~"trace_macros",
+        intern(@~"trace_macros"),
         builtin_normal_tt(ext::trace_macros::expand_trace_macros));
     MapChain::new(~syntax_expanders)
 }
@@ -514,7 +515,39 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
             ConsMapChain (~ref mut map,_) => map.insert(key,ext)
         }
     }
+    // insert the binding into the topmost frame for which the binding
+    // associated with 'n' exists and satisfies pred
+    // ... there are definitely some opportunities for abstraction
+    // here that I'm ignoring. (e.g., manufacturing a predicate on
+    // the maps in the chain, and using an abstract "find".
+    fn insert_into_frame(&mut self, key: K, ext: @V, n: K, pred: &fn(&@V)->bool) {
+        match *self {
+            BaseMapChain (~ref mut map) => {
+                if satisfies_pred(map,&n,pred) {
+                    map.insert(key,ext);
+                } else {
+                    fail!(~"expected map chain containing satisfying frame")
+                }
+            },
+            ConsMapChain (~ref mut map, rest) => {
+                if satisfies_pred(map,&n,pred) {
+                    map.insert(key,ext);
+                } else {
+                    rest.insert_into_frame(key,ext,n,pred)
+                }
+            }
+        }
+    }
+}
 
+fn satisfies_pred<K : Eq + Hash + IterBytes,V>(map : &mut HashMap<K,V>,
+                                               n: &K,
+                                               pred: &fn(&V)->bool)
+    -> bool {
+    match map.find(n) {
+        Some(ref v) => (pred(*v)),
+        None => false
+    }
 }
 
 #[cfg(test)]
