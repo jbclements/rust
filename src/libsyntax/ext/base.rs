@@ -507,6 +507,14 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
         }
     }
 
+    fn find_in_topmost_frame(&self, key: &k) -> Option<@V> {
+        let map = match *self {
+            BaseMapChain(ref map) => map
+            ConsMapChain(ref map,_) => map
+        }
+        map.find(k)
+    }
+
     // insert the binding into the top-level map
     fn insert (&mut self, key: K, ext: @V) -> bool {
         // can't abstract over get_map because of flow sensitivity...
@@ -540,6 +548,7 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
     }
 }
 
+// returns true if the binding for 'n' satisfies 'pred' in 'map'
 fn satisfies_pred<K : Eq + Hash + IterBytes,V>(map : &mut HashMap<K,V>,
                                                n: &K,
                                                pred: &fn(&V)->bool)

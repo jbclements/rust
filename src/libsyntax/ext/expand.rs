@@ -23,6 +23,8 @@ use parse;
 use parse::{parse_item_from_source_str};
 use parse::token::{get_ident_interner,intern};
 
+static block_info_name = " block";
+
 pub fn expand_expr(extsbox: @mut SyntaxEnv,
                    cx: @ext_ctxt,
                    e: &expr_,
@@ -155,7 +157,7 @@ macro_rules! with_exts_frame (
     ({let extsbox = $extsboxexpr;
       let oldexts = *extsbox;
       *extsbox = oldexts.push_frame();
-      extsbox.insert(intern(@~" block"),
+      extsbox.insert(intern(@~block_info_name),
                      @BlockInfo(BlockInfo{macros_escape:$macros_escape,pending_renames:@mut ~[]}));
       let result = $e;
       *extsbox = oldexts;
@@ -281,16 +283,16 @@ pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
 // insert a macro into the innermost frame that doesn't have the
 // macro_escape tag.
 fn insert_macro(exts: SyntaxEnv, name: ast::Name, transformer: @Transformer) {
-    let block_err_msg = ~"special identifier ' block' was bound to a non-BlockInfo";
     let is_non_escaping_block =
         |t : &@Transformer| -> bool{
         match t {
             &@BlockInfo(BlockInfo {macros_escape:false,_}) => true,
             &@BlockInfo(BlockInfo {_}) => false,
-            _ => fail!(block_err_msg)
+            _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
+                            block_info_name))
         }
     };
-    exts.insert_into_frame(name,transformer,intern(@~" block"),
+    exts.insert_into_frame(name,transformer,intern(@~block_info_name),
                            is_non_escaping_block)
 }
 
@@ -373,7 +375,7 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
     with_exts_frame!(extsbox,false,orig(blk,sp,fld))
 }
 
-/*
+
 // expand the statements one at a time, doing renaming
 // when we encounter a 'let'
 pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
@@ -386,7 +388,8 @@ pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
     // we're going to be lazy about the renames; storing the pending renames
     // in a mutable vector, and applying them to statements as we go through
     // the list
-    let pending_renames = @mut ~[];
+    let block_info = get_block_info(*extsbox);
+    let pending_renames = block_info.pending_renames;
     let mut rename_fld = renames_to_fold(pending_renames);
     let new_stmts = do b.stmts.map |stmt| {
         // apply the pending renames
@@ -395,8 +398,8 @@ pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
         let stmt = fld.fold_stmt(stmt);
         // is it a let?
         match stmt {
-            spanned{node: stmt_decl(spanned{node: }, _), ..._} => {
-
+            spanned{node: stmt_decl(@spanned{node: decl_local(locals)}, _), ..._} => {
+                
             }
             let_stmt(ident,rhs) => {
                 let new_name = make_fresh_name(ident.repr);
@@ -418,7 +421,16 @@ pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
         rules: b.rules
     }
 }
-*/
+
+// get the (innermost) BlockInfo from an exts stack
+fn get_block_info(exts : SyntaxEnv) -> BlockInfo {
+    match exts.find_in_topmost_frame(intern(@~block_info_name)) {
+        Some(BlockInfo(bi)) => bi,
+        _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
+                       block_info_name))
+    }
+}
+
 
 // given a mutable list of renames, return a tree-folder that applies those
 // renames.
