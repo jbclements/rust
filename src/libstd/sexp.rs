@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use core::io::{Writer, WriterUtil, ReaderUtil};
+use core::io::{Writer, WriterUtil};
 use core::str;
 use core::float;
 use serialize;
@@ -50,7 +50,7 @@ pub fn Encoder(wr: @Writer) -> Encoder {
 }
 
 
-fn unimpl(err: ~str) {
+fn unimpl(err: &str) {
     fail!(fmt!("unimplemented serialization: %?",err))
 }
 
@@ -65,7 +65,7 @@ fn escape_str(s: &str) -> ~str {
     for str::each_char(s) |c| {
         match c {
           '"' => escaped += ~"\\\"",
-          '\\' => escaped += ~"\\\\",
+          '\\' => escaped += "\\\\",
           '\x08' => escaped += ~"\\b",
           '\x0c' => escaped += ~"\\f",
           '\n' => escaped += ~"\\n",
@@ -113,7 +113,7 @@ pub fn as_symbol (s: &str) -> ~str {
 
 
 impl serialize::Encoder for Encoder {
-    fn emit_nil(&mut self) { self.wr.write_str(~"(nil)"); }
+    fn emit_nil(&mut self) { self.wr.write_str("(nil)"); }
 
     fn emit_uint(&mut self, v: uint) { self.wr.write_str (v.to_str()); }
     fn emit_u64(&mut self, v: u64) { self.wr.write_str (v.to_str()); }
@@ -128,29 +128,29 @@ impl serialize::Encoder for Encoder {
     fn emit_i8(&mut self, v: i8)   { self.wr.write_str (v.to_str()); }
 
     fn emit_bool(&mut self, v: bool) {
-        self.wr.write_str (if v {~"#t"} else {~"#f"});
+        self.wr.write_str (if v {"#t"} else {"#f"});
     }
 
-    fn emit_f64(&mut self, _v: f64) { unimpl(~"f64"); }
-    fn emit_f32(&mut self, _v: f32) { unimpl(~"f32"); }
+    fn emit_f64(&mut self, _v: f64) { unimpl(&"f64"); }
+    fn emit_f32(&mut self, _v: f32) { unimpl(&"f32"); }
     fn emit_float(&mut self, v: float) {
         self.wr.write_str(float::to_str_digits(v, 6u));
     }
 
-    fn emit_char(&mut self, _v: char) { unimpl(~"char"); }
+    fn emit_char(&mut self, _v: char) { unimpl(&"char"); }
 
     fn emit_str(&mut self, v: &str) {
         self.wr.write_str (escape_str(v)); }
 
+    // 'e' is for enum
     fn emit_enum(&mut self, _name: &str, f: &fn(&mut Encoder)) {
         f(self); }
 
-    // 'e' is for enum
     fn emit_enum_variant(&mut self, name: &str, _id: uint, _cnt: uint, f: &fn(&mut Encoder)) {
-        self.wr.write_str (~"(e ");
+        self.wr.write_str ("(e ");
         self.wr.write_str (as_symbol (name));
         f(self);
-        self.wr.write_str (~")")
+        self.wr.write_str (")")
     }
 
     fn emit_enum_variant_arg(&mut self, _idx: uint, f: &fn(&mut Encoder)) {
@@ -158,9 +158,63 @@ impl serialize::Encoder for Encoder {
         f(self);
     }
 
+    // options are just another enum, for us...
+    fn emit_option(&mut self, f: &fn(&mut Encoder)) {
+        self.emit_enum(&"Option",f);
+    }
+    fn emit_option_none(&mut self) {
+        self.emit_enum_variant(&"None",0,0,|_x|{});
+    }
+    fn emit_option_some(&mut self, f: &fn(&mut Encoder)) {
+        // grr... the 'f' here isn't a call to emit_enum_variant_arg,
+        // so we can't just punt through to emit_enum_variant.
+        //self.emit_enum_variant(&"Some",1,1,f);
+        self.wr.write_str("(e Some ");
+        f(self);
+        self.wr.write_str(")");
+    }
+
+    // maps : unimplemented
+
+    fn emit_map(&mut self, _len: uint, _f: &fn(&mut Encoder)) {
+        unimpl(&"map")
+    }
+    fn emit_map_elt_key(&mut self, _idx: uint, _f: &fn(&mut Encoder)) {
+        unimpl(&"map elt key")
+    }
+    fn emit_map_elt_val(&mut self, _idx: uint, _f: &fn(&mut Encoder)) {
+        unimpl(&"map elt val")
+    }
+
+    // enum struct variants: unimplemented
+    fn emit_enum_struct_variant(&mut self,
+                                _v_name: &str,
+                                _v_id: uint,
+                                _len: uint,
+                                _f: &fn(&mut Encoder)) {
+        unimpl(&"struct variant");
+    }
+
+    fn emit_enum_struct_variant_field(&mut self,
+                                      _f_name: &str,
+                                      _f_idx: uint,
+                                      _f: &fn(&mut Encoder)) {
+        unimpl(&"struct variant field");
+    }
+
+    // tuple structs : unimplemented
+    fn emit_tuple_struct(&mut self, _name: &str, _len: uint, _f: &fn(&mut Encoder)) {
+        unimpl(&"tuple struct");
+    }
+
+    fn emit_tuple_struct_arg(&mut self, _f_idx: uint, _f: &fn(&mut Encoder)) {
+        unimpl(&"tuple struct arg");
+    }
+
+
     // 'v' is for vector
     fn emit_seq(&mut self, _len: uint, f: &fn(&mut Encoder)) {
-        self.wr.write_str (~"(v");
+        self.wr.write_str ("(v");
         f(self);
         self.wr.write_char (')');
     }
@@ -172,13 +226,15 @@ impl serialize::Encoder for Encoder {
 
     // 's' is for struct
     fn emit_struct(&mut self, name: &str, _len: uint, f: &fn(&mut Encoder)) {
-        self.wr.write_str (~"(s ");
+        self.wr.write_str ("(s ");
         self.wr.write_str (as_symbol (name));
         f(self);
-        self.wr.write_str (~")")
+        self.wr.write_str (")")
     }
     fn emit_struct_field(&mut self, name: &str, _idx: uint, f: &fn(&mut Encoder)) {
-        self.wr.write_str (~" (" + name + ~" ");
+        self.wr.write_str(" (");
+        self.wr.write_str(name);
+        self.wr.write_str(" ");
         f(self);
         self.wr.write_char (')');
     }
@@ -189,7 +245,7 @@ impl serialize::Encoder for Encoder {
         self.wr.write_char(')');
     }
     fn emit_tuple_arg(&mut self, _idx: uint, f: &fn(&mut Encoder)) {
-        unimpl(~"tup_elt"); f(self);
+        unimpl(&"tup_elt"); f(self);
     }
 }
 
@@ -209,9 +265,9 @@ mod test {
     fn to_sexp_str<E : serialize::Encodable<Encoder>>(v : E) -> ~str{
         let bw = @io::BytesWriter {bytes: ~[], pos: 0};
         let bww : @Writer = (bw as @Writer);
-        let e = Encoder(bww);
-        v.encode(&e);
-        str::from_bytes(bw.bytes.data)
+        let mut e = Encoder(bww);
+        v.encode(&mut e);
+        str::from_bytes(bw.bytes)
     }
 
     #[auto_encode]
@@ -222,19 +278,19 @@ mod test {
     }
 
     macro_rules! encode_test (
-        ($v:expr,$expected:expr) => (assert_eq!(to_sexp_str ($v),$expected))
+        ($v:expr,$expected:expr) => (assert_eq!(to_sexp_str($v),~$expected))
     )
 
     #[test]
     fn test_vbar_escape () {
-        assert_eq!(vbar_escape_str (~"abc|def|"),~"|abc\\|def\\||");
+        assert_eq!(vbar_escape_str("abc|def|"),~"|abc\\|def\\||");
     }
     #[test]
     fn test_as_symbol() {
-        assert_eq!(as_symbol (~"defG987"),~"defG987");
-        assert_eq!(as_symbol (~"de_fG9_87"),~"de_fG9_87");
-        assert_eq!(as_symbol (~"de_fG9`_87"),~"|de_fG9`_87|");
-        assert_eq!(as_symbol (~"def 879"),~"|def 879|");
+        assert_eq!(as_symbol("defG987"),~"defG987");
+        assert_eq!(as_symbol("de_fG9_87"),~"de_fG9_87");
+        assert_eq!(as_symbol("de_fG9`_87"),~"|de_fG9`_87|");
+        assert_eq!(as_symbol("def 879"),~"|def 879|");
     }
 
     #[auto_encode]
@@ -245,13 +301,15 @@ mod test {
 
     #[test]
     fn test_write () {
-        encode_test! (@12, ~"12");
-        encode_test! (@A(12), ~"(e A 12)");
-        encode_test! (@C(42,2), ~"(e C 42 2)");
-        encode_test! (@B(~"abc"), ~"(e B \"abc\")");
+        encode_test! (@12, "12");
+        encode_test! (@A(12), "(e A 12)");
+        encode_test! (@C(42,2), "(e C 42 2)");
+        encode_test! (@B(~"abc"), "(e B \"abc\")");
         encode_test! (@TestStruct {f_2: B (~"def"), f_1: 16},
-                     ~"(s TestStruct (f_1 16) (f_2 (e B \"def\")))");
-        encode_test! (@~[43,287,2],~"(v 43 287 2)");
+                     "(s TestStruct (f_1 16) (f_2 (e B \"def\")))");
+        encode_test! (@~[43,287,2],"(v 43 287 2)");
+        encode_test!(Some(13),"(e Some 13)");
+        encode_test!(13,"13");
     }
 
     struct BPos(uint);
@@ -261,15 +319,16 @@ mod test {
 
     #[test]
     fn test_write_newtype () {
-        encode_test! (@HasPos {pos:BPos(78)},~"(s HasPos (pos 78))");
+        encode_test! (@HasPos {pos:BPos(78)},"(s HasPos (pos 78))");
     }
 
-    type allNums = (uint,u64,u32,u16,u8,int,i64,i32,i16,i8);
+    type AllNums = (uint,u64,u32,u16,u8,int,i64,i32,i16,i8);
 
-
+/*
     #[test]
     fn test_write_nums(){
         encode_test!((3,3,3,3,3,3,3,3,3,3),
-                    ~"(tup )")
-    }
+                    "(tup )")
+  }
+*/
 }
