@@ -312,7 +312,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
                 }
             }
         }
-        _ => return orig(s, sp, fld)
+        _ => return expand_non_macro_stmt(*extsbox,s,sp,fld)
     };
     if (pth.idents.len() > 1u) {
         cx.span_fatal(
@@ -362,6 +362,49 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
 
 }
 
+// expand a non-macro stmt:
+fn expand_non_macro_stmt (extsbox: @mut SyntaxEnv,
+                   cx: @ext_ctxt,
+                   s: &stmt_,
+                   sp: span,
+                   fld: @ast_fold) -> ~stmt_ {
+    // is it a let?
+    match stmt {
+        spanned{node: stmt_decl(@spanned{node: decl_local(locals)}, node_id), span} => {
+            // for each of the local bindings
+            let rewritten_locals =
+                do locals.map |local| {
+                // take it apart:
+                let @spanned{node:local_{is_mutbl,ty,pat,init,id},span:span} = local;
+                // rewrite the init before adding the new bindings:
+                let rewritten_init = rewrite_expr_opt(init);
+                // expand the pat (it might contain exprs... #:(o)>
+                let expanded_pat = fld.fold_pat(pat);
+                // oh dear heaven... this is going to include the enum names, as well....
+                let names = extract_binding_names(expanded_pat);
+                for names.each |name| {
+                    let new_name = make_fresh_name(name);
+                    pending_renames.push((ident,new_name));
+                }
+                // rewrite the pattern using names, including the new ones:
+                let rewritten_pat = rewrite_pat(expanded_pat,pending_renames);
+                @spanned{node:local_ {is_mutbl:is_mutbl,
+                                      ty:ty,
+                                      pat:rewritten_pat,
+                                      init:rewritten_init,
+                                      id:id},
+                         span:span}
+            };
+            spanned{node: stmt_decl(rewritten_locals,node_id),
+                    span: span}
+        },
+        _ => {
+            let renamed = rewrite_stmt(stmt);
+            fld.fold_stmt(renamed);
+        }
+    }
+}
+
 
 
 pub fn expand_block(extsbox: @mut SyntaxEnv,
@@ -392,22 +435,7 @@ pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
     let pending_renames = block_info.pending_renames;
     let mut rename_fld = renames_to_fold(pending_renames);
     let new_stmts = do b.stmts.map |stmt| {
-        // apply the pending renames
-        let stmt = rename_fld.fold_stmt(stmt);
-        // expand the statement:
-        let stmt = fld.fold_stmt(stmt);
-        // is it a let?
-        match stmt {
-            spanned{node: stmt_decl(@spanned{node: decl_local(locals)}, _), ..._} => {
-                
-            }
-            let_stmt(ident,rhs) => {
-                let new_name = make_fresh_name(ident.repr);
-                pending_renames.push((ident,new_name));
-                let_stmt(rename(ident,ident,new_name),rhs)
-            }
-            _ => stmt
-        }
+
     };
     // there are 0 or 1 of these:
     let new_expr = do b.expr.map |x| {
