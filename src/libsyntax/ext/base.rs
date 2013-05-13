@@ -507,12 +507,13 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
         }
     }
 
-    fn find_in_topmost_frame(&self, key: &k) -> Option<@V> {
+    fn find_in_topmost_frame(&self, key: &K) -> Option<@V> {
         let map = match *self {
             BaseMapChain(ref map) => map,
             ConsMapChain(ref map,_) => map
         };
-        map.find(k)
+        // strip one layer of indirection off the pointer.
+        map.find(key).map(|r| {**r})
     }
 
     // insert the binding into the top-level map

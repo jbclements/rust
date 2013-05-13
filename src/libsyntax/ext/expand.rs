@@ -22,8 +22,8 @@ use fold::*;
 use parse;
 use parse::{parse_item_from_source_str};
 use parse::token::{get_ident_interner,intern};
-
-static block_info_name = " block";
+use visit;
+use visit::{Visitor,mk_vt};
 
 pub fn expand_expr(extsbox: @mut SyntaxEnv,
                    cx: @ext_ctxt,
@@ -157,7 +157,7 @@ macro_rules! with_exts_frame (
     ({let extsbox = $extsboxexpr;
       let oldexts = *extsbox;
       *extsbox = oldexts.push_frame();
-      extsbox.insert(intern(@~block_info_name),
+      extsbox.insert(intern(@~" block"),
                      @BlockInfo(BlockInfo{macros_escape:$macros_escape,pending_renames:@mut ~[]}));
       let result = $e;
       *extsbox = oldexts;
@@ -289,10 +289,10 @@ fn insert_macro(exts: SyntaxEnv, name: ast::Name, transformer: @Transformer) {
             &@BlockInfo(BlockInfo {macros_escape:false,_}) => true,
             &@BlockInfo(BlockInfo {_}) => false,
             _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
-                            block_info_name))
+                            @~" block"))
         }
     };
-    exts.insert_into_frame(name,transformer,intern(@~block_info_name),
+    exts.insert_into_frame(name,transformer,intern(@~" block"),
                            is_non_escaping_block)
 }
 
@@ -312,7 +312,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
                 }
             }
         }
-        _ => orig(s,sp,fld)
+        _ => return orig(s,sp,fld)
         // _ => return expand_non_macro_stmt(*extsbox,s,sp,fld)
     };
     if (pth.idents.len() > 1u) {
@@ -411,27 +411,28 @@ fn expand_non_macro_stmt (exts: SyntaxEnv,
 // return a visitor that extracts the pat_ident paths
 // from a given pattern and puts them in a mutable
 // array (passed in to the traversal
-fn make_name_finder() -> @Visitor<&mut ~[ident]> {
+pub fn new_name_finder() -> @Visitor<@mut ~[ast::ident]> {
     let default_visitor = visit::default_visitor();
     @Visitor{
-        visit_pat : @|p,ident_accum,v| {
-            match p {
-                // we foud a pat_ident!
-                pat_ident(_,path,ref inner) => {
+        visit_pat : |p:@ast::pat,ident_accum,v:visit::vt<@mut ~[ast::ident]>| {
+            match *p {
+                // we found a pat_ident!
+                ast::pat{id:_, node: ast::pat_ident(_,path,ref inner), span:_} => {
                     match path {
                         // a path of length one:
-                        ast::Path{false,@~[id]} => ident_accum.push(path),
+                        @ast::Path{global: false,idents: [id], span:_,rp:_,types:_} =>
+                        ident_accum.push(id),
                         // I believe these must be enums...
                         _ => ()
                     }
-                    // visit subpatterns of pat_ident:
-                    for inner.each |subpat| { (v.visit_pat)(*subpat, ident_accum, v) }
+                    // visit optional subpattern of pat_ident:
+                    for inner.each |subpat: &@ast::pat| { (v.visit_pat)(*subpat, ident_accum, v) }
                 }
                 // use the default traversal for non-pat_idents
                 _ => visit::visit_pat(p,ident_accum,v)
             }
         },
-        .. default_visitor
+        .. *default_visitor
     }
 }
 
@@ -449,40 +450,12 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
 }
 
 
-// expand the statements one at a time, doing renaming
-// when we encounter a 'let'
-pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
-                          cx: @ext_ctxt,
-                          blk: &blk_,
-                          sp: span,
-                          fld: @ast_fold
-                         ) -> (blk_, span) {
-    let new_view_items = b.view_items.map(|x| fld.fold_view_item(*x));
-    // we're going to be lazy about the renames; storing the pending renames
-    // in a mutable vector, and applying them to statements as we go through
-    // the list
-    let new_stmts = do b.stmts.map |stmt| {
-
-    };
-    // there are 0 or 1 of these:
-    let new_expr = do b.expr.map |x| {
-        fld.fold_expr(rename_fld.fold_expr(expr))
-    }
-    ast::blk_ {
-        view_items : new_view_items,
-        stmts : new_stmts,
-        expr : new_expr,
-        id: fld.new_id(b.id),
-        rules: b.rules
-    }
-}
-
 // get the (innermost) BlockInfo from an exts stack
 fn get_block_info(exts : SyntaxEnv) -> BlockInfo {
-    match exts.find_in_topmost_frame(intern(@~block_info_name)) {
-        Some(BlockInfo(bi)) => bi,
+    match exts.find_in_topmost_frame(&intern(@~" block")) {
+        Some(@BlockInfo(bi)) => bi,
         _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
-                       block_info_name))
+                       @~" block"))
     }
 }
 
@@ -809,7 +782,8 @@ mod test {
     use parse;
     use core::io;
     use core::option::{None, Some};
-    use util::parser_testing::{string_to_item_and_sess};
+    use util::parser_testing::{string_to_item_and_sess, string_to_pat, strs_to_idents};
+    use visit::{mk_vt,Visitor};
 
     // make sure that fail! is present
     #[test] fn fail_exists_test () {
@@ -934,11 +908,11 @@ mod test {
     }
 
     #[test]
-    fn pat_idents{
+    fn pat_idents(){
         let pat = string_to_pat(@~"(a,Foo{x:c @ (b,9),y:Bar(4,d)})");
-        let pat_idents = make_name_finder();
-        let mut idents = ~[];
-        pat_idents.fold_pat(pat,&mut idents, mk_vt(pat_idents));
-        assert_eq!(idents,~[a,c,b,d]);
+        let pat_idents = new_name_finder();
+        let idents = @mut ~[];
+        ((*pat_idents).visit_pat)(pat,idents, mk_vt(pat_idents));
+        assert_eq!(idents,@mut strs_to_idents(~[@~"a",@~"c",@~"b",@~"d"]));
     }
 }
