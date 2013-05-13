@@ -509,9 +509,9 @@ impl <K: Eq + Hash + IterBytes ,V: Copy> MapChain<K,V>{
 
     fn find_in_topmost_frame(&self, key: &k) -> Option<@V> {
         let map = match *self {
-            BaseMapChain(ref map) => map
+            BaseMapChain(ref map) => map,
             ConsMapChain(ref map,_) => map
-        }
+        };
         map.find(k)
     }
 

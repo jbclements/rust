@@ -312,7 +312,8 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
                 }
             }
         }
-        _ => return expand_non_macro_stmt(*extsbox,s,sp,fld)
+        _ => orig(s,sp,fld)
+        // _ => return expand_non_macro_stmt(*extsbox,s,sp,fld)
     };
     if (pth.idents.len() > 1u) {
         cx.span_fatal(
@@ -361,23 +362,25 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
     }, sp)
 
 }
-
-// expand a non-macro stmt:
-fn expand_non_macro_stmt (extsbox: @mut SyntaxEnv,
-                   cx: @ext_ctxt,
+/*
+// expand a non-macro stmt. this is essentially the fallthrough for
+// expand_stmt, above.
+fn expand_non_macro_stmt (exts: SyntaxEnv,
                    s: &stmt_,
-                   sp: span,
                    fld: @ast_fold) -> ~stmt_ {
     // is it a let?
-    match stmt {
+    match *s {
         spanned{node: stmt_decl(@spanned{node: decl_local(locals)}, node_id), span} => {
-            // for each of the local bindings
+            let block_info = get_block_info(exts);
+            let pending_renames = block_info.pending_renames;
+            let mut rename_fld = renames_to_fold(pending_renames);
+           // for each of the local bindings
             let rewritten_locals =
                 do locals.map |local| {
                 // take it apart:
                 let @spanned{node:local_{is_mutbl,ty,pat,init,id},span:span} = local;
                 // rewrite the init before adding the new bindings:
-                let rewritten_init = rewrite_expr_opt(init);
+                let rewritten_init = init.map(|e| rename_fld.fold_expr(e));
                 // expand the pat (it might contain exprs... #:(o)>
                 let expanded_pat = fld.fold_pat(pat);
                 // oh dear heaven... this is going to include the enum names, as well....
@@ -402,6 +405,33 @@ fn expand_non_macro_stmt (extsbox: @mut SyntaxEnv,
             let renamed = rewrite_stmt(stmt);
             fld.fold_stmt(renamed);
         }
+    }
+}
+*/
+// return a visitor that extracts the pat_ident paths
+// from a given pattern and puts them in a mutable
+// array (passed in to the traversal
+fn make_name_finder() -> @Visitor<&mut ~[ident]> {
+    let default_visitor = visit::default_visitor();
+    @Visitor{
+        visit_pat : @|p,ident_accum,v| {
+            match p {
+                // we foud a pat_ident!
+                pat_ident(_,path,ref inner) => {
+                    match path {
+                        // a path of length one:
+                        ast::Path{false,@~[id]} => ident_accum.push(path),
+                        // I believe these must be enums...
+                        _ => ()
+                    }
+                    // visit subpatterns of pat_ident:
+                    for inner.each |subpat| { (v.visit_pat)(*subpat, ident_accum, v) }
+                }
+                // use the default traversal for non-pat_idents
+                _ => visit::visit_pat(p,ident_accum,v)
+            }
+        },
+        .. default_visitor
     }
 }
 
@@ -431,9 +461,6 @@ pub fn expand_block_inner(extsbox: @mut SyntaxEnv,
     // we're going to be lazy about the renames; storing the pending renames
     // in a mutable vector, and applying them to statements as we go through
     // the list
-    let block_info = get_block_info(*extsbox);
-    let pending_renames = block_info.pending_renames;
-    let mut rename_fld = renames_to_fold(pending_renames);
     let new_stmts = do b.stmts.map |stmt| {
 
     };
@@ -906,4 +933,12 @@ mod test {
         io::print(fmt!("ast: %?\n",resolved_ast))
     }
 
+    #[test]
+    fn pat_idents{
+        let pat = string_to_pat(@~"(a,Foo{x:c @ (b,9),y:Bar(4,d)})");
+        let pat_idents = make_name_finder();
+        let mut idents = ~[];
+        pat_idents.fold_pat(pat,&mut idents, mk_vt(pat_idents));
+        assert_eq!(idents,~[a,c,b,d]);
+    }
 }
