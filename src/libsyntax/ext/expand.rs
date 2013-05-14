@@ -9,8 +9,8 @@
 // except according to those terms.
 
 use ast::{blk_, attribute_, attr_outer, meta_word};
-use ast::{crate, expr_, expr_mac, mac_invoc_tt};
-use ast::{item_mac, stmt_, stmt_mac, stmt_expr, stmt_semi};
+use ast::{crate, decl_local, expr_, expr_mac, mac_invoc_tt};
+use ast::{item_mac, local_, stmt_, stmt_decl, stmt_mac, stmt_expr, stmt_semi};
 use ast::{SCTable, illegal_ctxt};
 use ast;
 use ast_util::{new_rename, new_mark, resolve, new_sctable};
@@ -362,6 +362,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
     }, sp)
 
 }
+
 /*
 // expand a non-macro stmt. this is essentially the fallthrough for
 // expand_stmt, above.
@@ -374,6 +375,9 @@ fn expand_non_macro_stmt (exts: SyntaxEnv,
             let block_info = get_block_info(exts);
             let pending_renames = block_info.pending_renames;
             let mut rename_fld = renames_to_fold(pending_renames);
+            // there's no need to have a lot of these, we could
+            // just pass one of them around...
+            let name_finder = new_name_finder();
            // for each of the local bindings
             let rewritten_locals =
                 do locals.map |local| {
@@ -383,10 +387,15 @@ fn expand_non_macro_stmt (exts: SyntaxEnv,
                 let rewritten_init = init.map(|e| rename_fld.fold_expr(e));
                 // expand the pat (it might contain exprs... #:(o)>
                 let expanded_pat = fld.fold_pat(pat);
+                // find the pat_idents in the pattern:
                 // oh dear heaven... this is going to include the enum names, as well....
-                let names = extract_binding_names(expanded_pat);
-                for names.each |name| {
-                    let new_name = make_fresh_name(name);
+                let idents = @mut ~[];
+                name_finder.fold_pat(expanded_pat,
+                                     idents,
+                                     mk_vt(name_finder));
+                // generate fresh names, push them to the pending list
+                for idents.each |ident| {
+                    let new_name = make_fresh_name(ident);
                     pending_renames.push((ident,new_name));
                 }
                 // rewrite the pattern using names, including the new ones:
@@ -408,13 +417,14 @@ fn expand_non_macro_stmt (exts: SyntaxEnv,
     }
 }
 */
+
 // return a visitor that extracts the pat_ident paths
 // from a given pattern and puts them in a mutable
 // array (passed in to the traversal
 pub fn new_name_finder() -> @Visitor<@mut ~[ast::ident]> {
     let default_visitor = visit::default_visitor();
     @Visitor{
-        visit_pat : |p:@ast::pat,ident_accum,v:visit::vt<@mut ~[ast::ident]>| {
+        visit_pat : |p:@ast::pat,ident_accum:@mut ~[ast::ident],v:visit::vt<@mut ~[ast::ident]>| {
             match *p {
                 // we found a pat_ident!
                 ast::pat{id:_, node: ast::pat_ident(_,path,ref inner), span:_} => {
