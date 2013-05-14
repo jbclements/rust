@@ -22,12 +22,12 @@ use core::hashmap::HashMap;
 use std::serialize::{Encodable, Decodable, Encoder, Decoder};
 
 
-// an identifier contains an index into the interner
-// table and a SyntaxContext to track renaming and
+// an identifier contains a Name (index into the interner
+// table) and a SyntaxContext to track renaming and
 // macro expansion per Flatt et al., "Macros
 // That Work Together"
 #[deriving(Eq)]
-pub struct ident { repr: Name, ctxt: SyntaxContext }
+pub struct ident { name: Name, ctxt: SyntaxContext }
 
 // a SyntaxContext represents a chain of macro-expandings
 // and renamings. Each macro expansion corresponds to
@@ -94,7 +94,7 @@ impl<D:Decoder> Decodable<D> for ident {
 
 impl to_bytes::IterBytes for ident {
     fn iter_bytes(&self, lsb0: bool, f: to_bytes::Cb) {
-        self.repr.iter_bytes(lsb0, f)
+        self.name.iter_bytes(lsb0, f)
     }
 }
 
