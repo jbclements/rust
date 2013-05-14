@@ -497,6 +497,19 @@ pub fn intern(str : @~str) -> uint {
     interner.intern(str).repr
 }
 
+/*
+// create a fresh name. In principle, this is just a
+// gensym, but for debugging purposes, you'd like the
+// resulting name to have a suggestive stringify, without
+// paying the cost of guaranteeing that the name is
+// truly unique.  I'm going to try to strike a balance
+// by using a gensym with a name that has three random
+// chars at the end.
+pub fn make_fresh_name(src_name : @~str) -> Name {
+
+}
+*/
+
 /**
  * All the valid words that have meaning in the Rust language.
  *
