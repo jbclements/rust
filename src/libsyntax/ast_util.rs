@@ -18,6 +18,8 @@ use opt_vec;
 
 use core::to_bytes;
 
+pub fn new_ident(name : uint) -> ident { ident {repr:3,ctxt:0}}
+
 pub fn path_name_i(idents: &[ident], intr: @token::ident_interner) -> ~str {
     // FIXME: Bad copies (#2543 -- same for everything else that says "bad")
     str::connect(idents.map(|i| copy *intr.get(*i)), ~"::")
