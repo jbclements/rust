@@ -137,7 +137,6 @@ impl reader for TtReader {
 }
 
 // EFFECT: advance peek_tok and peek_span to refer to the next token.
-// EFFECT: update the interner, maybe.
 fn string_advance_token(r: @mut StringReader) {
     match (consume_whitespace_and_comments(r)) {
         Some(comment) => {
@@ -540,7 +539,7 @@ fn next_token_inner(rdr: @mut StringReader) -> token::Token {
         let is_mod_name = c == ':' && nextch(rdr) == ':';
 
         // FIXME: perform NFKC normalization here. (Issue #2253)
-        return token::IDENT(get_ident_interner().intern(@accum_str), is_mod_name);
+        return token::IDENT(str_to_ident(@accum_str), is_mod_name);
     }
     if is_dec_digit(c) {
         return scan_number(c, rdr);
@@ -771,28 +770,23 @@ mod test {
 
     // represents a testing reader (incl. both reader and interner)
     struct Env {
-        interner: @token::ident_interner,
         string_reader: @mut StringReader
     }
 
     // open a string reader for the given string
-    fn setup(teststr: ~str) -> Env {
+    fn setup(teststr: ~str) -> @mut StringReader {
         let cm = CodeMap::new();
         let fm = cm.new_filemap(~"zebra.rs", @teststr);
-        let ident_interner = token::get_ident_interner();
         let span_handler =
             diagnostic::mk_span_handler(diagnostic::mk_handler(None),@cm);
-        Env {
-            interner: ident_interner,
-            string_reader: new_string_reader(span_handler,fm)
-        }
+        new_string_reader(span_handler,fm)
     }
 
     #[test] fn t1 () {
-        let Env {interner: ident_interner, string_reader} =
+        let string_reader =
             setup(~"/* my source file */ \
                     fn main() { io::println(~\"zebra\"); }\n");
-        let id = ident_interner.intern(@~"fn");
+        let id = intern(@~"fn");
         let tok1 = string_reader.next_token();
         let tok2 = TokenAndSpan{
             tok:token::IDENT(id, false),
@@ -803,7 +797,7 @@ mod test {
         // read another token:
         let tok3 = string_reader.next_token();
         let tok4 = TokenAndSpan{
-            tok:token::IDENT(ident_interner.intern (@~"main"), false),
+            tok:token::IDENT(intern (@~"main"), false),
             sp:span {lo:BytePos(24),hi:BytePos(28),expn_info: None}};
         assert_eq!(tok3,tok4);
         // the lparen is already read:
@@ -812,10 +806,10 @@ mod test {
 
     // check that the given reader produces the desired stream
     // of tokens (stop checking after exhausting the expected vec)
-    fn check_tokenization (env: Env, expected: ~[token::Token]) {
+    fn check_tokenization (string_reader: @mut StringReader, expected: ~[token::Token]) {
         for expected.each |expected_tok| {
             let TokenAndSpan {tok:actual_tok, sp: _} =
-                env.string_reader.next_token();
+                string_reader.next_token();
             assert_eq!(&actual_tok,expected_tok);
         }
     }

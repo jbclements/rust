@@ -493,9 +493,19 @@ pub fn mk_fake_ident_interner() -> @ident_interner {
 }
 
 // maps a string to its interned representation
-pub fn intern(str : @~str) -> uint {
+pub fn intern(str : @~str) -> ast::Name {
     let interner = get_ident_interner();
-    interner.intern(str).name
+    interner.intern(str)
+}
+
+// map an interned representation back to a string
+pub fn interner_get(name : Name) -> @~str {
+    get_ident_interner().get(name);
+}
+
+// maps a string to an identifier with an empty syntax context
+pub fn str_to_ident(str : @~str) -> ast::ident {
+    new_ident(intern(str))
 }
 
 /*

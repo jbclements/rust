@@ -577,7 +577,7 @@ pub enum Privacy {
 pub fn new_ident(name: Name) -> ident { ident {name: name, ctxt: 0}}
 
 /// Extend a syntax context with a given mark
-pub fn new_mark (m:Mrk, tail:SyntaxContext,table:&mut SCTable)
+pub fn new_mark(m:Mrk, tail:SyntaxContext,table:&mut SCTable)
     -> SyntaxContext {
     let key = (tail,m);
     // FIXME #5074 : can't use more natural style because we're missing

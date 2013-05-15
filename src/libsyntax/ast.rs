@@ -59,7 +59,7 @@ pub static illegal_ctxt : uint = 1;
 #[auto_decode]
 pub enum SyntaxContext_ {
     EmptyCtxt,
-    Mark (Mrk,SyntaxContext),
+    Mark(Mrk,SyntaxContext),
     // flattening the name and syntaxcontext into the rename...
     // HIDDEN INVARIANTS:
     // 1) the first name in a Rename node
@@ -81,13 +81,13 @@ pub type Mrk = uint;
 
 impl<S:Encoder> Encodable<S> for ident {
     fn encode(&self, s: &mut S) {
-        s.emit_str(*get_ident_interner().get(*self));
+        s.emit_str(*interner_get(*self.name));
     }
 }
 
 impl<D:Decoder> Decodable<D> for ident {
     fn decode(d: &mut D) -> ident {
-        get_ident_interner().intern(@d.read_str())
+        str_to_ident(@d.read_str())
     }
 }
 
