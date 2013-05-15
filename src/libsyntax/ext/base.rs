@@ -333,7 +333,7 @@ pub fn mk_ctxt(parse_sess: @mut parse::ParseSess, cfg: ast::crate_cfg)
             copy *get_ident_interner().get(id)
         }
         fn ident_of(&self, st: ~str) -> ast::ident {
-            get_ident_interner().intern(@/*bad*/ copy st)
+            new_ident(get_ident_interner().intern(@/*bad*/ copy st))
         }
     }
     let imp: @CtxtRepr = @CtxtRepr {

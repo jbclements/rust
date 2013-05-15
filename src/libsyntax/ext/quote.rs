@@ -414,11 +414,11 @@ pub fn expand_quote_stmt(cx: @ext_ctxt,
 }
 
 fn ids_ext(strs: ~[~str]) -> ~[ast::ident] {
-    strs.map(|str| get_ident_interner().intern(@copy *str))
+    strs.map(|str| new_ident(get_ident_interner().intern(@copy *str)))
 }
 
 fn id_ext(str: ~str) -> ast::ident {
-    get_ident_interner().intern(@str)
+    new_ident(get_ident_interner().intern(@str))
 }
 
 // Lift an ident to the expr that evaluates to that ident.

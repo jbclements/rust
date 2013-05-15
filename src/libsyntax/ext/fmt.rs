@@ -52,8 +52,10 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
    -> @ast::expr {
     fn make_path_vec(cx: @ext_ctxt, ident: @~str) -> ~[ast::ident] {
         let intr = get_ident_interner();
-        return ~[intr.intern(@~"unstable"), intr.intern(@~"extfmt"),
-                 intr.intern(@~"rt"), intr.intern(ident)];
+        return ~[new_ident(intr.intern(@~"unstable")),
+                 new_ident(intr.intern(@~"extfmt")),
+                 new_ident(intr.intern(@~"rt")),
+                 new_ident(intr.intern(ident))];
     }
     fn make_rt_path_expr(cx: @ext_ctxt, sp: span, nm: @~str) -> @ast::expr {
         let path = make_path_vec(cx, nm);
@@ -115,16 +117,16 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
                 make_path_vec(cx, @~"Conv"),
                 ~[
                     build::Field {
-                        ident: intr.intern(@~"flags"), ex: flags_expr
+                        ident: new_ident(intr.intern(@~"flags")), ex: flags_expr
                     },
                     build::Field {
-                        ident: intr.intern(@~"width"), ex: width_expr
+                        ident: new_ident(intr.intern(@~"width")), ex: width_expr
                     },
                     build::Field {
-                        ident: intr.intern(@~"precision"), ex: precision_expr
+                        ident: new_ident(intr.intern(@~"precision")), ex: precision_expr
                     },
                     build::Field {
-                        ident: intr.intern(@~"ty"), ex: ty_expr
+                        ident: new_ident(intr.intern(@~"ty")), ex: ty_expr
                     },
                 ]
             )
@@ -260,10 +262,10 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
     let nargs = args.len();
 
     /* 'ident' is the local buffer building up the result of fmt! */
-    let ident = get_ident_interner().intern(@~"__fmtbuf");
+    let ident = new_ident(get_ident_interner().intern(@~"__fmtbuf"));
     let buf = || mk_path(cx, fmt_sp, ~[ident]);
-    let str_ident = get_ident_interner().intern(@~"str");
-    let push_ident = get_ident_interner().intern(@~"push_str");
+    let str_ident = new_ident(get_ident_interner().intern(@~"str"));
+    let push_ident = new_ident(get_ident_interner().intern(@~"push_str"));
     let mut stms = ~[];
 
     /* Translate each piece (portion of the fmt expression) by invoking the

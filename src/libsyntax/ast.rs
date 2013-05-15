@@ -592,7 +592,7 @@ pub enum token_tree {
     tt_seq(span, ~[token_tree], Option<::parse::token::Token>, bool),
 
     // a syntactic variable that will be filled in by macro expansion.
-    tt_nonterminal(span, ident)
+    tt_nonterminal(span, Name)
 }
 
 //
@@ -659,7 +659,8 @@ pub enum matcher_ {
     // lo, hi position-in-match-array used:
     match_seq(~[matcher], Option<::parse::token::Token>, bool, uint, uint),
     // parse a Rust NT: name to bind, name of NT, position in match array:
-    match_nonterminal(ident, ident, uint)
+    // this "name of NT" could be an enum, no?
+    match_nonterminal(Name, Name, uint)
 }
 
 pub type mac = spanned<mac_>;

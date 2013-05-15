@@ -78,9 +78,9 @@ pub enum Token {
     LIT_INT(i64, ast::int_ty),
     LIT_UINT(u64, ast::uint_ty),
     LIT_INT_UNSUFFIXED(i64),
-    LIT_FLOAT(ast::ident, ast::float_ty),
-    LIT_FLOAT_UNSUFFIXED(ast::ident),
-    LIT_STR(ast::ident),
+    LIT_FLOAT(ast::Name, ast::float_ty),
+    LIT_FLOAT_UNSUFFIXED(ast::Name),
+    LIT_STR(ast::Name),
 
     /* Name components */
     // an identifier contains an "is_mod_name" boolean,
@@ -93,7 +93,7 @@ pub enum Token {
     /* For interpolation */
     INTERPOLATED(nonterminal),
 
-    DOC_COMMENT(ast::ident),
+    DOC_COMMENT(ast::Name),
     EOF,
 }
 
@@ -108,7 +108,7 @@ pub enum nonterminal {
     nt_pat( @ast::pat),
     nt_expr(@ast::expr),
     nt_ty(  @ast::Ty),
-    nt_ident(ast::ident, bool),
+    nt_ident(ast::Name, bool),
     nt_path(@ast::Path),
     nt_tt(  @ast::token_tree), //needs @ed to break a circularity
     nt_matchers(~[ast::matcher])
@@ -395,26 +395,22 @@ pub struct ident_interner {
 }
 
 pub impl ident_interner {
-    // I'm torn as to whether these should produce idents or
-    // just uints.
-    fn intern(&self, val: @~str) -> ast::ident {
-        ast::ident { name: self.interner.intern(val), ctxt: 0 }
+    fn intern(&self, val: @~str) -> ast::Name {
+        self.interner.intern(val)
     }
-    fn gensym(&self, val: @~str) -> ast::ident {
-        ast::ident { name: self.interner.gensym(val), ctxt: 0 }
+    fn gensym(&self, val: @~str) -> ast::Name {
+        self.interner.gensym(val)
     }
-    fn get(&self, idx: ast::ident) -> @~str {
-        self.interner.get(idx.name)
+    fn get(&self, idx: ast::Name) -> @~str {
+        self.interner.get(idx)
     }
+    // is this really something that should be exposed?
     fn len(&self) -> uint {
         self.interner.len()
     }
     fn find_equiv<Q:Hash + IterBytes + Equiv<@~str>>(&self, val: &Q)
-                                                     -> Option<ast::ident> {
-        match self.interner.find_equiv(val) {
-            Some(v) => Some(ast::ident { name: v, ctxt: 0 }),
-            None => None,
-        }
+                                                     -> Option<ast::Name> {
+        self.interner.find_equiv(val)
     }
 }
 

@@ -35,7 +35,7 @@ pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
             }
         }
     }
-    let res = get_ident_interner().intern(@res_str);
+    let res = new_ident(get_ident_interner().intern(@res_str));
 
     let e = @ast::expr {
         id: cx.next_id(),

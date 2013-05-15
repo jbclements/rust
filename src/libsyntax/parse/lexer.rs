@@ -263,7 +263,7 @@ fn consume_any_line_comment(rdr: @mut StringReader)
                 // but comments with only "/"s are not
                 if !is_line_non_doc_comment(acc) {
                     return Some(TokenAndSpan{
-                        tok: token::DOC_COMMENT(get_ident_interner().intern(@acc)),
+                        tok: token::DOC_COMMENT(intern(@acc)),
                         sp: codemap::mk_sp(start_bpos, rdr.pos)
                     });
                 }
@@ -317,7 +317,7 @@ fn consume_block_comment(rdr: @mut StringReader)
             // but comments with only "*"s between two "/"s are not
             if !is_block_non_doc_comment(acc) {
                 return Some(TokenAndSpan{
-                    tok: token::DOC_COMMENT(get_ident_interner().intern(@acc)),
+                    tok: token::DOC_COMMENT(intern(@acc)),
                     sp: codemap::mk_sp(start_bpos, rdr.pos)
                 });
             }
@@ -459,12 +459,12 @@ fn scan_number(c: char, rdr: @mut StringReader) -> token::Token {
         if c == '3' && n == '2' {
             bump(rdr);
             bump(rdr);
-            return token::LIT_FLOAT(get_ident_interner().intern(@num_str),
+            return token::LIT_FLOAT(intern(@num_str),
                                  ast::ty_f32);
         } else if c == '6' && n == '4' {
             bump(rdr);
             bump(rdr);
-            return token::LIT_FLOAT(get_ident_interner().intern(@num_str),
+            return token::LIT_FLOAT(intern(@num_str),
                                  ast::ty_f64);
             /* FIXME (#2252): if this is out of range for either a
             32-bit or 64-bit float, it won't be noticed till the
@@ -476,9 +476,9 @@ fn scan_number(c: char, rdr: @mut StringReader) -> token::Token {
     }
     if is_float {
         if is_machine_float {
-            return token::LIT_FLOAT(get_ident_interner().intern(@num_str), ast::ty_f);
+            return token::LIT_FLOAT(intern(@num_str), ast::ty_f);
         }
-        return token::LIT_FLOAT_UNSUFFIXED(get_ident_interner().intern(@num_str));
+        return token::LIT_FLOAT_UNSUFFIXED(intern(@num_str));
     } else {
         if str::len(num_str) == 0u {
             rdr.fatal(~"no valid digits found for number");
