@@ -318,12 +318,10 @@ pub fn gather_comments_and_literals(span_diagnostic:
                                     srdr: @io::Reader)
                                  -> (~[cmnt], ~[lit]) {
     let src = @str::from_bytes(srdr.read_whole_stream());
-    let itr = parse::token::mk_fake_ident_interner();
     let cm = CodeMap::new();
     let filemap = cm.new_filemap(path, src);
     let rdr = lexer::new_low_level_string_reader(span_diagnostic,
-                                                 filemap,
-                                                 itr);
+                                                 filemap);
 
     let mut comments: ~[cmnt] = ~[];
     let mut literals: ~[lit] = ~[];
@@ -353,7 +351,7 @@ pub fn gather_comments_and_literals(span_diagnostic:
             debug!("tok lit: %s", s);
             literals.push(lit {lit: s, pos: sp.lo});
         } else {
-            debug!("tok: %s", token::to_str(get_ident_interner(), &tok));
+            debug!("tok: %s", token::to_str(&tok));
         }
         first_read = false;
     }

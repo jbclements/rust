@@ -45,25 +45,22 @@ pub struct StringReader {
     // The last character to be read
     curr: char,
     filemap: @codemap::FileMap,
-    interner: @token::ident_interner,
     /* cached: */
     peek_tok: token::Token,
     peek_span: span
 }
 
 pub fn new_string_reader(span_diagnostic: @span_handler,
-                         filemap: @codemap::FileMap,
-                         itr: @token::ident_interner)
+                         filemap: @codemap::FileMap)
                       -> @mut StringReader {
-    let r = new_low_level_string_reader(span_diagnostic, filemap, itr);
+    let r = new_low_level_string_reader(span_diagnostic, filemap);
     string_advance_token(r); /* fill in peek_* */
     return r;
 }
 
 /* For comments.rs, which hackily pokes into 'pos' and 'curr' */
 pub fn new_low_level_string_reader(span_diagnostic: @span_handler,
-                                   filemap: @codemap::FileMap,
-                                   itr: @token::ident_interner)
+                                   filemap: @codemap::FileMap)
                                 -> @mut StringReader {
     // Force the initial reader bump to start on a fresh line
     let initial_char = '\n';
@@ -74,7 +71,6 @@ pub fn new_low_level_string_reader(span_diagnostic: @span_handler,
         col: CharPos(0),
         curr: initial_char,
         filemap: filemap,
-        interner: itr,
         /* dummy values; not read */
         peek_tok: token::EOF,
         peek_span: codemap::dummy_sp()
@@ -95,7 +91,6 @@ fn dup_string_reader(r: @mut StringReader) -> @mut StringReader {
         col: r.col,
         curr: r.curr,
         filemap: r.filemap,
-        interner: get_ident_interner(),
         peek_tok: copy r.peek_tok,
         peek_span: copy r.peek_span
     }
@@ -532,7 +527,6 @@ fn ident_continue(c: char) -> bool {
 
 // return the next token from the string
 // EFFECT: advances the input past that token
-// EFFECT: updates the interner
 fn next_token_inner(rdr: @mut StringReader) -> token::Token {
     let mut accum_str = ~"";
     let mut c = rdr.curr;
@@ -790,7 +784,7 @@ mod test {
             diagnostic::mk_span_handler(diagnostic::mk_handler(None),@cm);
         Env {
             interner: ident_interner,
-            string_reader: new_string_reader(span_handler,fm,ident_interner)
+            string_reader: new_string_reader(span_handler,fm)
         }
     }
 

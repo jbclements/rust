@@ -790,7 +790,7 @@ mod test {
     use codemap;
     use codemap::spanned;
     use parse;
-    use parse::token::{get_ident_interner};
+    use parse::token::{get_ident_interner, intern};
     use core::io;
     use core::option::{None, Some};
     use util::parser_testing::{string_to_item_and_sess, string_to_pat, strs_to_idents};
@@ -902,13 +902,13 @@ mod test {
 
     #[test]
     fn renaming () {
-        let (maybe_item_ast,sess) = string_to_item_and_sess(@~"fn a() -> int { let b = 13; b} ");
+        let (maybe_item_ast,_) = string_to_item_and_sess(@~"fn a() -> int { let b = 13; b} ");
         let item_ast = match maybe_item_ast {
             Some(x) => x,
             None => fail!("test case fail")
         };
         let table = @mut new_sctable();
-        let a_name = 100; // enforced by testing_interner
+        let a_name = intern(@~"a");
         let a2_name = get_ident_interner().gensym(@~"a2").name;
         let renamer = new_ident_renamer(ast::ident{name:a_name,ctxt:empty_ctxt},
                                         a2_name,table);

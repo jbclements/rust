@@ -379,7 +379,7 @@ pub fn parse(
                     nts, next_eis.len()));
             } else if (bb_eis.len() == 0u && next_eis.len() == 0u) {
                 return failure(sp, ~"No rules expected the token: "
-                            + to_str(get_ident_interner(), &tok));
+                            + to_str(&tok));
             } else if (next_eis.len() > 0u) {
                 /* Now process the next token */
                 while(next_eis.len() > 0u) {
@@ -425,7 +425,7 @@ pub fn parse_nt(p: &Parser, name: ~str) -> nonterminal {
       ~"ident" => match *p.token {
         token::IDENT(sn,b) => { p.bump(); token::nt_ident(sn,b) }
         _ => p.fatal(~"expected ident, found "
-                     + token::to_str(get_ident_interner(), &copy *p.token))
+                     + token::to_str(&copy *p.token))
       },
       ~"path" => token::nt_path(p.parse_path_with_tps(false)),
       ~"tt" => {

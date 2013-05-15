@@ -19,7 +19,7 @@ use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
 use parse::attr::parser_attr;
 use parse::lexer::reader;
 use parse::parser::Parser;
-use parse::token::{ident_interner, get_ident_interner};
+use parse::token::{get_ident_interner};
 
 use core::io;
 use core::option::{None, Option, Some};
@@ -307,8 +307,7 @@ pub fn filemap_to_tts(sess: @mut ParseSess, filemap: @FileMap)
     // parsing tt's probably shouldn't require a parser at all.
     let cfg = ~[];
     let srdr = lexer::new_string_reader(copy sess.span_diagnostic,
-                                        filemap,
-                                        get_ident_interner());
+                                        filemap);
     let p1 = Parser(sess, cfg, srdr as @reader);
     p1.parse_all_token_trees()
 }

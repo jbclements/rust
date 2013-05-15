@@ -68,19 +68,20 @@ pub mod rt {
 
     */
 
+    // I believe that the cx here is never used...
     pub trait ToSource {
         // Takes a thing and generates a string containing rust code for it.
         pub fn to_source(&self, cx: @ext_ctxt) -> ~str;
     }
 
     impl ToSource for ast::ident {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             copy *get_ident_interner().get(*self)
         }
     }
 
     impl ToSource for @ast::item {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             item_to_str(*self, get_ident_interner())
         }
     }
@@ -92,7 +93,7 @@ pub mod rt {
     }
 
     impl ToSource for @ast::Ty {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             ty_to_str(*self, get_ident_interner())
         }
     }
@@ -104,19 +105,19 @@ pub mod rt {
     }
 
     impl ToSource for Generics {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             pprust::generics_to_str(self, get_ident_interner())
         }
     }
 
     impl ToSource for @ast::expr {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             pprust::expr_to_str(*self, get_ident_interner())
         }
     }
 
     impl ToSource for ast::blk {
-        fn to_source(&self, cx: @ext_ctxt) -> ~str {
+        fn to_source(&self, _cx: @ext_ctxt) -> ~str {
             pprust::block_to_str(self, get_ident_interner())
         }
     }
@@ -412,11 +413,11 @@ pub fn expand_quote_stmt(cx: @ext_ctxt,
                                     ~[e_attrs], tts))
 }
 
-fn ids_ext(cx: @ext_ctxt, strs: ~[~str]) -> ~[ast::ident] {
+fn ids_ext(strs: ~[~str]) -> ~[ast::ident] {
     strs.map(|str| get_ident_interner().intern(@copy *str))
 }
 
-fn id_ext(cx: @ext_ctxt, str: ~str) -> ast::ident {
+fn id_ext(str: ~str) -> ast::ident {
     get_ident_interner().intern(@str)
 }
 
@@ -424,13 +425,13 @@ fn id_ext(cx: @ext_ctxt, str: ~str) -> ast::ident {
 fn mk_ident(cx: @ext_ctxt, sp: span, ident: ast::ident) -> @ast::expr {
     let e_str = build::mk_uniq_str(cx, sp, cx.str_of(ident));
     build::mk_method_call(cx, sp,
-                          build::mk_path(cx, sp, ids_ext(cx, ~[~"ext_cx"])),
-                          id_ext(cx, ~"ident_of"),
+                          build::mk_path(cx, sp, ids_ext(~[~"ext_cx"])),
+                          id_ext(~"ident_of"),
                           ~[e_str])
 }
 
 fn mk_bytepos(cx: @ext_ctxt, sp: span, bpos: BytePos) -> @ast::expr {
-    let path = ids_ext(cx, ~[~"BytePos"]);
+    let path = ids_ext(~[~"BytePos"]);
     let arg = build::mk_uint(cx, sp, bpos.to_uint());
     build::mk_call(cx, sp, path, ~[arg])
 }
@@ -449,7 +450,7 @@ fn mk_binop(cx: @ext_ctxt, sp: span, bop: token::binop) -> @ast::expr {
         SHR => "SHR"
     };
     build::mk_path(cx, sp,
-                   ids_ext(cx, ~[name.to_owned()]))
+                   ids_ext(~[name.to_owned()]))
 }
 
 fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
@@ -457,12 +458,12 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
     match tok {
         BINOP(binop) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"BINOP"]),
+                                  ids_ext(~[~"BINOP"]),
                                   ~[mk_binop(cx, sp, binop)]);
         }
         BINOPEQ(binop) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"BINOPEQ"]),
+                                  ids_ext(~[~"BINOPEQ"]),
                                   ~[mk_binop(cx, sp, binop)]);
         }
 
@@ -477,12 +478,12 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
             };
             let e_ity =
                 build::mk_path(cx, sp,
-                               ids_ext(cx, ~[s_ity]));
+                               ids_ext(~[s_ity]));
 
             let e_i64 = build::mk_lit(cx, sp, ast::lit_int(i, ast::ty_i64));
 
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIT_INT"]),
+                                  ids_ext(~[~"LIT_INT"]),
                                   ~[e_i64, e_ity]);
         }
 
@@ -496,12 +497,12 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
             };
             let e_uty =
                 build::mk_path(cx, sp,
-                               ids_ext(cx, ~[s_uty]));
+                               ids_ext(~[s_uty]));
 
             let e_u64 = build::mk_lit(cx, sp, ast::lit_uint(u, ast::ty_u64));
 
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIT_UINT"]),
+                                  ids_ext(~[~"LIT_UINT"]),
                                   ~[e_u64, e_uty]);
         }
 
@@ -510,7 +511,7 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
                                       ast::lit_int(i, ast::ty_i64));
 
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIT_INT_UNSUFFIXED"]),
+                                  ids_ext(~[~"LIT_INT_UNSUFFIXED"]),
                                   ~[e_i64]);
         }
 
@@ -522,37 +523,37 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
             };
             let e_fty =
                 build::mk_path(cx, sp,
-                               ids_ext(cx, ~[s_fty]));
+                               ids_ext(~[s_fty]));
 
             let e_fident = mk_ident(cx, sp, fident);
 
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIT_FLOAT"]),
+                                  ids_ext(~[~"LIT_FLOAT"]),
                                   ~[e_fident, e_fty]);
         }
 
         LIT_STR(ident) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIT_STR"]),
+                                  ids_ext(~[~"LIT_STR"]),
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
         IDENT(ident, b) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"IDENT"]),
+                                  ids_ext(~[~"IDENT"]),
                                   ~[mk_ident(cx, sp, ident),
                                     build::mk_lit(cx, sp, ast::lit_bool(b))]);
         }
 
         LIFETIME(ident) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"LIFETIME"]),
+                                  ids_ext(~[~"LIFETIME"]),
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
         DOC_COMMENT(ident) => {
             return build::mk_call(cx, sp,
-                                  ids_ext(cx, ~[~"DOC_COMMENT"]),
+                                  ids_ext(~[~"DOC_COMMENT"]),
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
@@ -597,7 +598,7 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: token::Token) -> @ast::expr {
         _ => fail!()
     };
     build::mk_path(cx, sp,
-                   ids_ext(cx, ~[name.to_owned()]))
+                   ids_ext(~[name.to_owned()]))
 }
 
 
@@ -608,15 +609,15 @@ fn mk_tt(cx: @ext_ctxt, sp: span, tt: &ast::token_tree)
 
         ast::tt_tok(sp, ref tok) => {
             let e_sp = build::mk_path(cx, sp,
-                                      ids_ext(cx, ~[~"sp"]));
+                                      ids_ext(~[~"sp"]));
             let e_tok =
                 build::mk_call(cx, sp,
-                               ids_ext(cx, ~[~"tt_tok"]),
+                               ids_ext(~[~"tt_tok"]),
                                ~[e_sp, mk_token(cx, sp, *tok)]);
             let e_push =
                 build::mk_method_call(cx, sp,
-                                      build::mk_path(cx, sp, ids_ext(cx, ~[~"tt"])),
-                                      id_ext(cx, ~"push"),
+                                      build::mk_path(cx, sp, ids_ext(~[~"tt"])),
+                                      id_ext(~"push"),
                                       ~[e_tok]);
             ~[build::mk_stmt(cx, sp, e_push)]
 
@@ -632,14 +633,14 @@ fn mk_tt(cx: @ext_ctxt, sp: span, tt: &ast::token_tree)
             let e_to_toks =
                 build::mk_method_call(cx, sp,
                                       build::mk_path(cx, sp, ~[ident]),
-                                      id_ext(cx, ~"to_tokens"),
+                                      id_ext(~"to_tokens"),
                                       ~[build::mk_path(cx, sp,
-                                                       ids_ext(cx, ~[~"ext_cx"]))]);
+                                                       ids_ext(~[~"ext_cx"]))]);
 
             let e_push =
                 build::mk_method_call(cx, sp,
-                                      build::mk_path(cx, sp, ids_ext(cx, ~[~"tt"])),
-                                      id_ext(cx, ~"push_all_move"),
+                                      build::mk_path(cx, sp, ids_ext(~[~"tt"])),
+                                      id_ext(~"push_all_move"),
                                       ~[e_to_toks]);
 
             ~[build::mk_stmt(cx, sp, e_push)]
@@ -678,7 +679,7 @@ fn expand_tts(cx: @ext_ctxt,
     // We want to emit a block expression that does a sequence of 'use's to
     // import the runtime module, followed by a tt-building expression.
 
-    let uses = ~[ build::mk_glob_use(cx, sp, ids_ext(cx, ~[~"syntax",
+    let uses = ~[ build::mk_glob_use(cx, sp, ids_ext(~[~"syntax",
                                                            ~"ext",
                                                            ~"quote",
                                                            ~"rt"])) ];
@@ -710,23 +711,23 @@ fn expand_tts(cx: @ext_ctxt,
     // worth the hassle.
 
     let e_sp = build::mk_method_call(cx, sp,
-                                     build::mk_path(cx, sp, ids_ext(cx, ~[~"ext_cx"])),
-                                     id_ext(cx, ~"call_site"),
+                                     build::mk_path(cx, sp, ids_ext(~[~"ext_cx"])),
+                                     id_ext(~"call_site"),
                                      ~[]);
 
     let stmt_let_sp = build::mk_local(cx, sp, false,
-                                      id_ext(cx, ~"sp"),
+                                      id_ext(~"sp"),
                                       e_sp);
 
     let stmt_let_tt = build::mk_local(cx, sp, true,
-                                      id_ext(cx, ~"tt"),
+                                      id_ext(~"tt"),
                                       build::mk_uniq_vec_e(cx, sp, ~[]));
 
     build::mk_block(cx, sp, uses,
                     ~[stmt_let_sp,
                       stmt_let_tt] + mk_tts(cx, sp, tts),
                     Some(build::mk_path(cx, sp,
-                                        ids_ext(cx, ~[~"tt"]))))
+                                        ids_ext(~[~"tt"]))))
 }
 
 fn expand_parse_call(cx: @ext_ctxt,
@@ -737,16 +738,16 @@ fn expand_parse_call(cx: @ext_ctxt,
     let tts_expr = expand_tts(cx, sp, tts);
 
     let cfg_call = || build::mk_method_call(
-        cx, sp, build::mk_path(cx, sp, ids_ext(cx, ~[~"ext_cx"])),
-        id_ext(cx, ~"cfg"), ~[]);
+        cx, sp, build::mk_path(cx, sp, ids_ext(~[~"ext_cx"])),
+        id_ext(~"cfg"), ~[]);
 
     let parse_sess_call = || build::mk_method_call(
-        cx, sp, build::mk_path(cx, sp, ids_ext(cx, ~[~"ext_cx"])),
-        id_ext(cx, ~"parse_sess"), ~[]);
+        cx, sp, build::mk_path(cx, sp, ids_ext(~[~"ext_cx"])),
+        id_ext(~"parse_sess"), ~[]);
 
     let new_parser_call =
         build::mk_call_global(cx, sp,
-                              ids_ext(cx, ~[~"syntax",
+                              ids_ext(~[~"syntax",
                                             ~"ext",
                                             ~"quote",
                                             ~"rt",
@@ -757,6 +758,6 @@ fn expand_parse_call(cx: @ext_ctxt,
 
     build::mk_method_call(cx, sp,
                           new_parser_call,
-                          id_ext(cx, parse_method),
+                          id_ext(parse_method),
                           arg_exprs)
 }
