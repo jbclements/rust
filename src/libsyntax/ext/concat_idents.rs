@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use ast;
+use ast_util::{new_ident};
 use codemap::span;
 use ext::base::*;
 use ext::base;

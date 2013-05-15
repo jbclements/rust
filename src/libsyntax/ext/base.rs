@@ -10,6 +10,7 @@
 
 use ast;
 use ast::Name;
+use ast_util::{new_ident};
 use codemap;
 use codemap::{CodeMap, span, ExpnInfo, ExpandedFrom};
 use codemap::CallInfo;

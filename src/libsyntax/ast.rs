@@ -11,6 +11,7 @@
 // The Rust abstract syntax tree.
 
 use codemap::{span, spanned};
+use ast_util::{new_ident};
 use abi::AbiSet;
 use opt_vec::OptVec;
 use parse::token::get_ident_interner;
