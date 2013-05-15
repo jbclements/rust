@@ -22,6 +22,7 @@ use ext::build;
 use ext::build::*;
 
 use core::unstable::extfmt::ct::*;
+use parse::token::{get_ident_interner};
 
 pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
     -> base::MacResult {
@@ -50,7 +51,7 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
                   pieces: ~[Piece], args: ~[@ast::expr])
    -> @ast::expr {
     fn make_path_vec(cx: @ext_ctxt, ident: @~str) -> ~[ast::ident] {
-        let intr = cx.parse_sess().interner;
+        let intr = get_ident_interner();
         return ~[intr.intern(@~"unstable"), intr.intern(@~"extfmt"),
                  intr.intern(@~"rt"), intr.intern(ident)];
     }
@@ -107,7 +108,7 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
         fn make_conv_struct(cx: @ext_ctxt, sp: span, flags_expr: @ast::expr,
                          width_expr: @ast::expr, precision_expr: @ast::expr,
                          ty_expr: @ast::expr) -> @ast::expr {
-            let intr = cx.parse_sess().interner;
+            let intr = get_ident_interner();
             mk_global_struct_e(
                 cx,
                 sp,
@@ -259,10 +260,10 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
     let nargs = args.len();
 
     /* 'ident' is the local buffer building up the result of fmt! */
-    let ident = cx.parse_sess().interner.intern(@~"__fmtbuf");
+    let ident = get_ident_interner().intern(@~"__fmtbuf");
     let buf = || mk_path(cx, fmt_sp, ~[ident]);
-    let str_ident = cx.parse_sess().interner.intern(@~"str");
-    let push_ident = cx.parse_sess().interner.intern(@~"push_str");
+    let str_ident = get_ident_interner().intern(@~"str");
+    let push_ident = get_ident_interner().intern(@~"push_str");
     let mut stms = ~[];
 
     /* Translate each piece (portion of the fmt expression) by invoking the

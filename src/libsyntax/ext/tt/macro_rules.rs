@@ -20,7 +20,7 @@ use ext::tt::macro_parser::{named_match, matched_seq, matched_nonterminal};
 use ext::tt::macro_parser::{parse, parse_or_else, success, failure};
 use parse::lexer::{new_tt_reader, reader};
 use parse::parser::Parser;
-use parse::token::special_idents;
+use parse::token::{get_ident_interner, special_idents};
 use parse::token::{FAT_ARROW, SEMI, nt_matchers, nt_tt};
 use print;
 
@@ -36,8 +36,8 @@ pub fn add_new_extension(cx: @ext_ctxt,
         spanned { node: copy m, span: dummy_sp() }
     }
 
-    let lhs_nm =  cx.parse_sess().interner.gensym(@~"lhs");
-    let rhs_nm =  cx.parse_sess().interner.gensym(@~"rhs");
+    let lhs_nm =  get_ident_interner().gensym(@~"lhs");
+    let rhs_nm =  get_ident_interner().gensym(@~"rhs");
 
     // The grammar for macro_rules! is:
     // $( $lhs:mtcs => $rhs:tt );+
@@ -55,7 +55,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
 
     // Parse the macro_rules! invocation (`none` is for no interpolations):
     let arg_reader = new_tt_reader(copy cx.parse_sess().span_diagnostic,
-                                   cx.parse_sess().interner, None, copy arg);
+                                   get_ident_interner(), None, copy arg);
     let argument_map = parse_or_else(cx.parse_sess(),
                                      cx.cfg(),
                                      arg_reader as @reader,
@@ -83,7 +83,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
                              cx.str_of(name),
                              print::pprust::tt_to_str(
                                  ast::tt_delim(vec::from_slice(arg)),
-                                 cx.parse_sess().interner)));
+                                 get_ident_interner())));
         }
 
         // Which arm's failure should we report? (the one furthest along)
@@ -91,7 +91,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
         let mut best_fail_msg = ~"internal error: ran no matchers";
 
         let s_d = cx.parse_sess().span_diagnostic;
-        let itr = cx.parse_sess().interner;
+        let itr = get_ident_interner();
 
         for lhses.eachi() |i, lhs| { // try each arm's matchers
             match *lhs {
@@ -149,7 +149,7 @@ pub fn add_new_extension(cx: @ext_ctxt,
         |cx, sp, arg| generic_extension(cx, sp, name, arg, lhses, rhses);
 
     return MRDef(MacroDef{
-        name: copy *cx.parse_sess().interner.get(name),
+        name: copy *get_ident_interner().get(name),
         ext: NormalTT(base::SyntaxExpanderTT{expander: exp, span: Some(sp)})
     });
 }

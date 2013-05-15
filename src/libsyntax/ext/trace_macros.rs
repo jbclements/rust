@@ -14,6 +14,7 @@ use ext::base::ext_ctxt;
 use ext::base;
 use parse::lexer::{new_tt_reader, reader};
 use parse::parser::Parser;
+use parse::token::{get_ident_interner};
 
 pub fn expand_trace_macros(cx: @ext_ctxt,
                            sp: span,
@@ -23,7 +24,7 @@ pub fn expand_trace_macros(cx: @ext_ctxt,
     let cfg = cx.cfg();
     let tt_rdr = new_tt_reader(
         copy cx.parse_sess().span_diagnostic,
-        cx.parse_sess().interner,
+        get_ident_interner(),
         None,
         vec::from_slice(tt)
     );

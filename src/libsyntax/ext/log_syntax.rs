@@ -13,6 +13,7 @@ use codemap;
 use ext::base::*;
 use ext::base;
 use print;
+use parse::token::{get_ident_interner};
 
 pub fn expand_syntax_ext(cx: @ext_ctxt,
                          sp: codemap::span,
@@ -23,7 +24,7 @@ pub fn expand_syntax_ext(cx: @ext_ctxt,
     io::stdout().write_line(
         print::pprust::tt_to_str(
             ast::tt_delim(vec::from_slice(tt)),
-            cx.parse_sess().interner));
+            get_ident_interner()));
 
     //trivial expression
     MRExpr(@ast::expr {

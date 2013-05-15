@@ -17,7 +17,7 @@ use diagnostic::span_handler;
 use ext;
 use parse;
 use parse::token;
-use parse::token::{intern};
+use parse::token::{intern, get_ident_interner};
 
 use core::hashmap::HashMap;
 
@@ -329,10 +329,10 @@ pub fn mk_ctxt(parse_sess: @mut parse::ParseSess, cfg: ast::crate_cfg)
             *self.trace_mac = x
         }
         fn str_of(&self, id: ast::ident) -> ~str {
-            copy *self.parse_sess.interner.get(id)
+            copy *get_ident_interner().get(id)
         }
         fn ident_of(&self, st: ~str) -> ast::ident {
-            self.parse_sess.interner.intern(@/*bad*/ copy st)
+            get_ident_interner().intern(@/*bad*/ copy st)
         }
     }
     let imp: @CtxtRepr = @CtxtRepr {

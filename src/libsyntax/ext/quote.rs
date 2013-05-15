@@ -75,13 +75,13 @@ pub mod rt {
 
     impl ToSource for ast::ident {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            copy *cx.parse_sess().interner.get(*self)
+            copy *get_ident_interner().get(*self)
         }
     }
 
     impl ToSource for @ast::item {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            item_to_str(*self, cx.parse_sess().interner)
+            item_to_str(*self, get_ident_interner())
         }
     }
 
@@ -93,7 +93,7 @@ pub mod rt {
 
     impl ToSource for @ast::Ty {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            ty_to_str(*self, cx.parse_sess().interner)
+            ty_to_str(*self, get_ident_interner())
         }
     }
 
@@ -105,19 +105,19 @@ pub mod rt {
 
     impl ToSource for Generics {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            pprust::generics_to_str(self, cx.parse_sess().interner)
+            pprust::generics_to_str(self, get_ident_interner())
         }
     }
 
     impl ToSource for @ast::expr {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            pprust::expr_to_str(*self, cx.parse_sess().interner)
+            pprust::expr_to_str(*self, get_ident_interner())
         }
     }
 
     impl ToSource for ast::blk {
         fn to_source(&self, cx: @ext_ctxt) -> ~str {
-            pprust::block_to_str(self, cx.parse_sess().interner)
+            pprust::block_to_str(self, get_ident_interner())
         }
     }
 
@@ -413,11 +413,11 @@ pub fn expand_quote_stmt(cx: @ext_ctxt,
 }
 
 fn ids_ext(cx: @ext_ctxt, strs: ~[~str]) -> ~[ast::ident] {
-    strs.map(|str| cx.parse_sess().interner.intern(@copy *str))
+    strs.map(|str| get_ident_interner().intern(@copy *str))
 }
 
 fn id_ext(cx: @ext_ctxt, str: ~str) -> ast::ident {
-    cx.parse_sess().interner.intern(@str)
+    get_ident_interner().intern(@str)
 }
 
 // Lift an ident to the expr that evaluates to that ident.
