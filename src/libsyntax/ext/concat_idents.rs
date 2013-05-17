@@ -13,6 +13,7 @@ use codemap::span;
 use ext::base::*;
 use ext::base;
 use parse::token;
+use parse::token::{get_ident_interner};
 
 pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
     -> base::MacResult {
@@ -33,7 +34,7 @@ pub fn expand_syntax_ext(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
             }
         }
     }
-    let res = cx.parse_sess().interner.intern(res_str);
+    let res = get_ident_interner().intern(res_str);
 
     let e = @ast::expr {
         id: cx.next_id(),

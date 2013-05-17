@@ -83,7 +83,7 @@ use parse::obsolete::{ObsoleteLifetimeNotation, ObsoleteConstManagedPointer};
 use parse::obsolete::{ObsoletePurity, ObsoleteStaticMethod};
 use parse::obsolete::{ObsoleteConstItem, ObsoleteFixedLengthVectorType};
 use parse::obsolete::{ObsoleteNamedExternModule};
-use parse::token::{can_begin_expr, is_ident, is_ident_or_path};
+use parse::token::{can_begin_expr, get_ident_interner, is_ident, is_ident_or_path};
 use parse::token::{is_plain_ident, INTERPOLATED, special_idents, token_to_binop};
 use parse::token;
 use parse::{new_sub_parser_from_file, next_node_id, ParseSess};
@@ -216,7 +216,7 @@ pub fn Parser(sess: @mut ParseSess,
               rdr: @reader)
            -> Parser {
     let tok0 = copy rdr.next_token();
-    let interner = rdr.interner();
+    let interner = get_ident_interner();
 
     Parser {
         reader: rdr,
@@ -333,7 +333,7 @@ pub impl Parser {
     fn get_id(&self) -> node_id { next_node_id(self.sess) }
 
     fn id_to_str(&self, id: ident) -> @~str {
-        self.sess.interner.get(id)
+        get_ident_interner().get(id)
     }
 
     // is this one of the keywords that signals a closure type?
@@ -3360,8 +3360,8 @@ pub impl Parser {
                 }
             }
             if fields.len() == 0 {
-                self.fatal(fmt!("Unit-like struct should be written as `struct %s;`",
-                                *self.interner.get(class_name)));
+                self.fatal(fmt!("Unit-like struct should be written as: `struct %s;`",
+                                *get_ident_interner().get(class_name)));
             }
             self.bump();
         } else if *self.token == token::LPAREN {
@@ -3605,7 +3605,7 @@ pub impl Parser {
     }
 
     fn push_mod_path(&self, id: ident, attrs: ~[ast::attribute]) {
-        let default_path = self.sess.interner.get(id);
+        let default_path = get_ident_interner().get(id);
         let file_path = match ::attr::first_attr_value_str_by_name(
             attrs, ~"path") {
 
@@ -3628,7 +3628,7 @@ pub impl Parser {
         let prefix = prefix.dir_path();
         let mod_path_stack = &*self.mod_path_stack;
         let mod_path = Path(".").push_many(*mod_path_stack);
-        let default_path = *self.sess.interner.get(id) + ~".rs";
+        let default_path = *get_ident_interner().get(id) + ~".rs";
         let file_path = match ::attr::first_attr_value_str_by_name(
             outer_attrs, ~"path") {
             Some(d) => {

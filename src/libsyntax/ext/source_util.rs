@@ -16,6 +16,7 @@ use ext::base::*;
 use ext::base;
 use ext::build::{mk_base_vec_e, mk_uint, mk_u8, mk_base_str};
 use parse;
+use parse::token::{get_ident_interner};
 use print::pprust;
 
 // These macros all relate to the file system; they either return
@@ -58,7 +59,7 @@ pub fn expand_file(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
 
 pub fn expand_stringify(cx: @ext_ctxt, sp: span, tts: &[ast::token_tree])
     -> base::MacResult {
-    let s = pprust::tts_to_str(tts, cx.parse_sess().interner);
+    let s = pprust::tts_to_str(tts, get_ident_interner());
     base::MRExpr(mk_base_str(cx, sp, s))
 }
 
