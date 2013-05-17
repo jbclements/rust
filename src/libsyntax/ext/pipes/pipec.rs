@@ -334,10 +334,10 @@ impl gen_init for protocol {
 
         cx.parse_item(fmt!("pub fn init%s() -> (client::%s, server::%s)\
                             { pub use core::pipes::HasBuffer; %s }",
-                           start_state.generics.to_source(cx),
-                           start_state.to_ty(cx).to_source(cx),
-                           start_state.to_ty(cx).to_source(cx),
-                           body.to_source(cx)))
+                           start_state.generics.to_source(),
+                           start_state.to_ty(cx).to_source(),
+                           start_state.to_ty(cx).to_source(),
+                           body.to_source()))
     }
 
     fn gen_buffer_init(&self, ext_cx: @ext_ctxt) -> @ast::expr {
