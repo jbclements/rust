@@ -22,6 +22,8 @@ use fold::*;
 use parse;
 use parse::{parse_item_from_source_str};
 use parse::token::{get_ident_interner,intern};
+use visit;
+use visit::{Visitor,mk_vt};
 
 pub fn expand_expr(extsbox: @mut SyntaxEnv,
                    cx: @ext_ctxt,
@@ -271,13 +273,13 @@ pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
 // insert a macro into the innermost frame that doesn't have the
 // macro_escape tag.
 fn insert_macro(exts: SyntaxEnv, name: ast::Name, transformer: @Transformer) {
-    let block_err_msg = "special identifier ' block' was bound to a non-BlockInfo";
     let is_non_escaping_block =
         |t : &@Transformer| -> bool{
         match t {
             &@BlockInfo(BlockInfo {macros_escape:false,_}) => true,
             &@BlockInfo(BlockInfo {_}) => false,
-            _ => fail!(block_err_msg)
+            _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
+                            special_block_name))
         }
     };
     exts.insert_into_frame(name,transformer,intern(special_block_name),
@@ -300,7 +302,8 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
                 }
             }
         }
-        _ => return orig(s, sp, fld)
+        _ => return orig(s,sp,fld)
+        // _ => return expand_non_macro_stmt(*extsbox,s,sp,fld)
     };
     if (pth.idents.len() > 1u) {
         cx.span_fatal(
@@ -349,6 +352,79 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
     }, sp)
 
 }
+/*
+// expand a non-macro stmt. this is essentially the fallthrough for
+// expand_stmt, above.
+fn expand_non_macro_stmt (exts: SyntaxEnv,
+                   s: &stmt_,
+                   fld: @ast_fold) -> ~stmt_ {
+    // is it a let?
+    match *s {
+        spanned{node: stmt_decl(@spanned{node: decl_local(locals)}, node_id), span} => {
+            let block_info = get_block_info(exts);
+            let pending_renames = block_info.pending_renames;
+            let mut rename_fld = renames_to_fold(pending_renames);
+           // for each of the local bindings
+            let rewritten_locals =
+                do locals.map |local| {
+                // take it apart:
+                let @spanned{node:local_{is_mutbl,ty,pat,init,id},span:span} = local;
+                // rewrite the init before adding the new bindings:
+                let rewritten_init = init.map(|e| rename_fld.fold_expr(e));
+                // expand the pat (it might contain exprs... #:(o)>
+                let expanded_pat = fld.fold_pat(pat);
+                // oh dear heaven... this is going to include the enum names, as well....
+                let names = extract_binding_names(expanded_pat);
+                for names.each |name| {
+                    let new_name = make_fresh_name(name);
+                    pending_renames.push((ident,new_name));
+                }
+                // rewrite the pattern using names, including the new ones:
+                let rewritten_pat = rewrite_pat(expanded_pat,pending_renames);
+                @spanned{node:local_ {is_mutbl:is_mutbl,
+                                      ty:ty,
+                                      pat:rewritten_pat,
+                                      init:rewritten_init,
+                                      id:id},
+                         span:span}
+            };
+            spanned{node: stmt_decl(rewritten_locals,node_id),
+                    span: span}
+        },
+        _ => {
+            let renamed = rewrite_stmt(stmt);
+            fld.fold_stmt(renamed);
+        }
+    }
+}
+*/
+// return a visitor that extracts the pat_ident paths
+// from a given pattern and puts them in a mutable
+// array (passed in to the traversal
+pub fn new_name_finder() -> @Visitor<@mut ~[ast::ident]> {
+    let default_visitor = visit::default_visitor();
+    @Visitor{
+        visit_pat : |p:@ast::pat,ident_accum: @mut ~[ast::ident],v:visit::vt<@mut ~[ast::ident]>| {
+            match *p {
+                // we found a pat_ident!
+                ast::pat{id:_, node: ast::pat_ident(_,path,ref inner), span:_} => {
+                    match path {
+                        // a path of length one:
+                        @ast::Path{global: false,idents: [id], span:_,rp:_,types:_} =>
+                        ident_accum.push(id),
+                        // I believe these must be enums...
+                        _ => ()
+                    }
+                    // visit optional subpattern of pat_ident:
+                    for inner.each |subpat: &@ast::pat| { (v.visit_pat)(*subpat, ident_accum, v) }
+                }
+                // use the default traversal for non-pat_idents
+                _ => visit::visit_pat(p,ident_accum,v)
+            }
+        },
+        .. *default_visitor
+    }
+}
 
 
 
@@ -362,6 +438,17 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
     // see note below about treatment of exts table
     with_exts_frame!(extsbox,false,orig(blk,sp,fld))
 }
+
+
+// get the (innermost) BlockInfo from an exts stack
+fn get_block_info(exts : SyntaxEnv) -> BlockInfo {
+    match exts.find_in_topmost_frame(&intern(special_block_name)) {
+        Some(@BlockInfo(bi)) => bi,
+        _ => fail!(fmt!("special identifier %? was bound to a non-BlockInfo",
+                       @~" block"))
+    }
+}
+
 
 // given a mutable list of renames, return a tree-folder that applies those
 // renames.
@@ -719,7 +806,8 @@ mod test {
     use parse;
     use core::io;
     use core::option::{None, Some};
-    use util::parser_testing::{string_to_item_and_sess};
+    use util::parser_testing::{string_to_item_and_sess, string_to_pat, strs_to_idents};
+    use visit::{mk_vt,Visitor};
 
     // make sure that fail! is present
     #[test] fn fail_exists_test () {
@@ -839,4 +927,12 @@ mod test {
         io::print(fmt!("ast: %?\n",resolved_ast))
     }
 
+    #[test]
+    fn pat_idents(){
+        let pat = string_to_pat(@~"(a,Foo{x:c @ (b,9),y:Bar(4,d)})");
+        let pat_idents = new_name_finder();
+        let idents = @mut ~[];
+        ((*pat_idents).visit_pat)(pat,idents, mk_vt(pat_idents));
+        assert_eq!(idents,@mut strs_to_idents(~["a","c","b","d"]));
+    }
 }
