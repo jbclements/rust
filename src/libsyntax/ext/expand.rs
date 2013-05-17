@@ -48,7 +48,7 @@ pub fn expand_expr(extsbox: @mut SyntaxEnv,
                     let extname = pth.idents[0];
                     let extnamestr = get_ident_interner().get(extname);
                     // leaving explicit deref here to highlight unbox op:
-                    match (*extsbox).find(&extname.repr) {
+                    match (*extsbox).find(&extname.name) {
                         None => {
                             cx.span_fatal(
                                 pth.span,
@@ -215,7 +215,7 @@ pub fn expand_item_mac(extsbox: @mut SyntaxEnv,
     let extname = pth.idents[0];
     let interner = get_ident_interner();
     let extnamestr = interner.get(extname);
-    let expanded = match (*extsbox).find(&extname.repr) {
+    let expanded = match (*extsbox).find(&extname.name) {
         None => cx.span_fatal(pth.span,
                               fmt!("macro undefined: '%s!'", *extnamestr)),
 
@@ -313,7 +313,7 @@ pub fn expand_stmt(extsbox: @mut SyntaxEnv,
     }
     let extname = pth.idents[0];
     let extnamestr = get_ident_interner().get(extname);
-    let (fully_expanded, sp) = match (*extsbox).find(&extname.repr) {
+    let (fully_expanded, sp) = match (*extsbox).find(&extname.name) {
         None =>
             cx.span_fatal(pth.span, fmt!("macro undefined: '%s'", *extnamestr)),
 
@@ -472,7 +472,7 @@ fn renames_to_fold(renames : @mut ~[(ast::ident,ast::Name)]) -> @ast_fold {
             let new_ctxt = renames.foldl(id.ctxt,|ctxt,&(from,to)| {
                 new_rename(from,to,*ctxt,table)
             });
-            ast::ident{repr:id.repr,ctxt:new_ctxt}
+            ast::ident{name:id.name,ctxt:new_ctxt}
         },
         .. *afp
     };
@@ -776,7 +776,7 @@ pub fn new_ident_renamer(from: ast::ident,
     @fn(ast::ident)->ast::ident {
     |id : ast::ident|
     ast::ident{
-        repr: id.repr,
+        name: id.name,
         ctxt: new_rename(from,to,id.ctxt,table)
     }
 }
@@ -788,7 +788,7 @@ pub fn new_ident_marker(mark: uint,
     @fn(ast::ident)->ast::ident {
     |id : ast::ident|
     ast::ident{
-        repr: id.repr,
+        name: id.name,
         ctxt: new_mark(mark,id.ctxt,table)
     }
 }
@@ -799,7 +799,7 @@ pub fn new_ident_resolver(table: @mut SCTable) ->
     @fn(ast::ident)->ast::ident {
     |id : ast::ident|
     ast::ident {
-        repr : resolve(id,table),
+        name : resolve(id,table),
         ctxt : illegal_ctxt
     }
 }
@@ -928,8 +928,8 @@ mod test {
         };
         let table = @mut new_sctable();
         let a_name = 100; // enforced by testing_interner
-        let a2_name = sess.interner.gensym("a2").repr;
-        let renamer = new_ident_renamer(ast::ident{repr:a_name,ctxt:empty_ctxt},
+        let a2_name = get_ident_interner().gensym("a2").name;
+        let renamer = new_ident_renamer(ast::ident{name:a_name,ctxt:empty_ctxt},
                                         a2_name,table);
         let renamed_ast = fun_to_ident_folder(renamer).fold_item(item_ast).get();
         let resolver = new_ident_resolver(table);

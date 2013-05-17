@@ -299,47 +299,47 @@ pub fn is_bar(t: &Token) -> bool {
 pub mod special_idents {
     use ast::ident;
 
-    pub static underscore : ident = ident { repr: 0, ctxt: 0};
-    pub static anon : ident = ident { repr: 1, ctxt: 0};
-    pub static invalid : ident = ident { repr: 2, ctxt: 0}; // ''
-    pub static unary : ident = ident { repr: 3, ctxt: 0};
-    pub static not_fn : ident = ident { repr: 4, ctxt: 0};
-    pub static idx_fn : ident = ident { repr: 5, ctxt: 0};
-    pub static unary_minus_fn : ident = ident { repr: 6, ctxt: 0};
-    pub static clownshoes_extensions : ident = ident { repr: 7, ctxt: 0};
+    pub static underscore : ident = ident { name: 0, ctxt: 0};
+    pub static anon : ident = ident { name: 1, ctxt: 0};
+    pub static invalid : ident = ident { name: 2, ctxt: 0}; // ''
+    pub static unary : ident = ident { name: 3, ctxt: 0};
+    pub static not_fn : ident = ident { name: 4, ctxt: 0};
+    pub static idx_fn : ident = ident { name: 5, ctxt: 0};
+    pub static unary_minus_fn : ident = ident { name: 6, ctxt: 0};
+    pub static clownshoes_extensions : ident = ident { name: 7, ctxt: 0};
 
-    pub static self_ : ident = ident { repr: 8, ctxt: 0}; // 'self'
+    pub static self_ : ident = ident { name: 8, ctxt: 0}; // 'self'
 
     /* for matcher NTs */
-    pub static item : ident = ident { repr: 9, ctxt: 0};
-    pub static block : ident = ident { repr: 10, ctxt: 0};
-    pub static stmt : ident = ident { repr: 11, ctxt: 0};
-    pub static pat : ident = ident { repr: 12, ctxt: 0};
-    pub static expr : ident = ident { repr: 13, ctxt: 0};
-    pub static ty : ident = ident { repr: 14, ctxt: 0};
-    pub static ident : ident = ident { repr: 15, ctxt: 0};
-    pub static path : ident = ident { repr: 16, ctxt: 0};
-    pub static tt : ident = ident { repr: 17, ctxt: 0};
-    pub static matchers : ident = ident { repr: 18, ctxt: 0};
+    pub static item : ident = ident { name: 9, ctxt: 0};
+    pub static block : ident = ident { name: 10, ctxt: 0};
+    pub static stmt : ident = ident { name: 11, ctxt: 0};
+    pub static pat : ident = ident { name: 12, ctxt: 0};
+    pub static expr : ident = ident { name: 13, ctxt: 0};
+    pub static ty : ident = ident { name: 14, ctxt: 0};
+    pub static ident : ident = ident { name: 15, ctxt: 0};
+    pub static path : ident = ident { name: 16, ctxt: 0};
+    pub static tt : ident = ident { name: 17, ctxt: 0};
+    pub static matchers : ident = ident { name: 18, ctxt: 0};
 
-    pub static str : ident = ident { repr: 19, ctxt: 0}; // for the type
+    pub static str : ident = ident { name: 19, ctxt: 0}; // for the type
 
     /* outside of libsyntax */
-    pub static ty_visitor : ident = ident { repr: 20, ctxt: 0};
-    pub static arg : ident = ident { repr: 21, ctxt: 0};
-    pub static descrim : ident = ident { repr: 22, ctxt: 0};
-    pub static clownshoe_abi : ident = ident { repr: 23, ctxt: 0};
-    pub static clownshoe_stack_shim : ident = ident { repr: 24, ctxt: 0};
-    pub static tydesc : ident = ident { repr: 25, ctxt: 0};
-    pub static main : ident = ident { repr: 26, ctxt: 0};
-    pub static opaque : ident = ident { repr: 27, ctxt: 0};
-    pub static blk : ident = ident { repr: 28, ctxt: 0};
-    pub static statik : ident = ident { repr: 29, ctxt: 0};
-    pub static intrinsic : ident = ident { repr: 30, ctxt: 0};
-    pub static clownshoes_foreign_mod: ident = ident { repr: 31, ctxt: 0};
-    pub static unnamed_field: ident = ident { repr: 32, ctxt: 0};
-    pub static c_abi: ident = ident { repr: 33, ctxt: 0};
-    pub static type_self: ident = ident { repr: 34, ctxt: 0};    // `Self`
+    pub static ty_visitor : ident = ident { name: 20, ctxt: 0};
+    pub static arg : ident = ident { name: 21, ctxt: 0};
+    pub static descrim : ident = ident { name: 22, ctxt: 0};
+    pub static clownshoe_abi : ident = ident { name: 23, ctxt: 0};
+    pub static clownshoe_stack_shim : ident = ident { name: 24, ctxt: 0};
+    pub static tydesc : ident = ident { name: 25, ctxt: 0};
+    pub static main : ident = ident { name: 26, ctxt: 0};
+    pub static opaque : ident = ident { name: 27, ctxt: 0};
+    pub static blk : ident = ident { name: 28, ctxt: 0};
+    pub static statik : ident = ident { name: 29, ctxt: 0};
+    pub static intrinsic : ident = ident { name: 30, ctxt: 0};
+    pub static clownshoes_foreign_mod: ident = ident { name: 31, ctxt: 0};
+    pub static unnamed_field: ident = ident { name: 32, ctxt: 0};
+    pub static c_abi: ident = ident { name: 33, ctxt: 0};
+    pub static type_self: ident = ident { name: 34, ctxt: 0};    // `Self`
 }
 
 pub struct StringRef<'self>(&'self str);
@@ -392,13 +392,13 @@ pub impl ident_interner {
     // I'm torn as to whether these should produce idents or
     // just uints.
     fn intern(&self, val: &str) -> ast::ident {
-        ast::ident { repr: self.interner.intern(val), ctxt: 0 }
+        ast::ident { name: self.interner.intern(val), ctxt: 0 }
     }
     fn gensym(&self, val: &str) -> ast::ident {
-        ast::ident { repr: self.interner.gensym(val), ctxt: 0 }
+        ast::ident { name: self.interner.gensym(val), ctxt: 0 }
     }
     fn get(&self, idx: ast::ident) -> @~str {
-        self.interner.get(idx.repr)
+        self.interner.get(idx.name)
     }
     fn len(&self) -> uint {
         self.interner.len()
@@ -406,7 +406,7 @@ pub impl ident_interner {
     fn find_equiv<Q:Hash + IterBytes + Equiv<@~str>>(&self, val: &Q)
                                                      -> Option<ast::ident> {
         match self.interner.find_equiv(val) {
-            Some(v) => Some(ast::ident { repr: v, ctxt: 0 }),
+            Some(v) => Some(ast::ident { name: v, ctxt: 0 }),
             None => None,
         }
     }
@@ -489,7 +489,7 @@ pub fn mk_fake_ident_interner() -> @ident_interner {
 // maps a string to its interned representation
 pub fn intern(str : &str) -> uint {
     let interner = get_ident_interner();
-    interner.intern(str).repr
+    interner.intern(str).name
 }
 
 /**
