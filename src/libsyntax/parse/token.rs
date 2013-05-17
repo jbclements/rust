@@ -17,6 +17,7 @@ use util::interner;
 
 use core::cmp::Equiv;
 use core::hashmap::HashSet;
+use core::rand::RngUtil;
 use core::to_bytes;
 
 #[deriving(Encodable, Decodable, Eq)]
@@ -521,12 +522,13 @@ pub fn gensym_ident(str : &str) -> ast::ident {
 // resulting name to have a suggestive stringify, without
 // paying the cost of guaranteeing that the name is
 // truly unique.  I'm going to try to strike a balance
-// by using a gensym with a name that has three random
-// chars at the end.
-pub fn make_fresh_name(src_name : @~str) -> Name {
-
+// by using a gensym with a name that has a random number
+// at the end. So, the gensym guarantees the uniqueness,
+// and the int helps to avoid confusion.
+pub fn fresh_name(src_name : &str) -> Name {
+    let num = rand::rng().gen_uint_range(0,0xffff); 
+   gensym(fmt!("%s_%u",str,num));
 }
-*/
 
 /**
  * All the valid words that have meaning in the Rust language.
@@ -588,4 +590,13 @@ pub fn reserved_keyword_table() -> HashSet<~str> {
         words.insert(s);
     }
     return words;
+}
+
+#[cfg(test)]
+mod test {
+    #[test] fn t1() {
+        let a = fresh_name("ghi");
+        io::println(fmt!("interned name: %u,\ntextual name: %s\n",
+                         a,interner_get(a)));
+    }
 }
