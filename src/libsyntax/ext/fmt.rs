@@ -114,6 +114,7 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
                 make_path_vec(cx, "Conv"),
                 ~[
                     build::Field {
+<<<<<<< HEAD
                         ident: str_to_ident("flags"), ex: flags_expr
                     },
                     build::Field {
@@ -124,6 +125,18 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
                     },
                     build::Field {
                         ident: str_to_ident("ty"), ex: ty_expr
+=======
+                        ident: ast::new_ident(intr.intern("flags")), ex: flags_expr
+                    },
+                    build::Field {
+                        ident: ast::new_ident(intr.intern("width")), ex: width_expr
+                    },
+                    build::Field {
+                        ident: ast::new_ident(intr.intern("precision")), ex: precision_expr
+                    },
+                    build::Field {
+                        ident: ast::new_ident(intr.intern("ty")), ex: ty_expr
+>>>>>>> e823928... changing representation of AST nodes to exclude ident info
                     },
                 ]
             )
@@ -259,10 +272,17 @@ fn pieces_to_expr(cx: @ext_ctxt, sp: span,
     let nargs = args.len();
 
     /* 'ident' is the local buffer building up the result of fmt! */
+<<<<<<< HEAD
     let ident = str_to_ident("__fmtbuf");
     let buf = || mk_path(cx, fmt_sp, ~[ident]);
     let str_ident = str_to_ident("str");
     let push_ident = str_to_ident("push_str");
+=======
+    let ident = ast::new_ident(get_ident_interner().intern("__fmtbuf"));
+    let buf = || mk_path(cx, fmt_sp, ~[ident]);
+    let str_ident = ast::new_ident(get_ident_interner().intern("str"));
+    let push_ident = ast::new_ident(get_ident_interner().intern("push_str"));
+>>>>>>> e823928... changing representation of AST nodes to exclude ident info
     let mut stms = ~[];
 
     /* Translate each piece (portion of the fmt expression) by invoking the

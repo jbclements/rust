@@ -19,13 +19,11 @@ use core::hashmap::HashMap;
 
 use core::to_bytes;
 
-pub fn path_name_i(idents: &[ident], intr: @token::ident_interner) -> ~str {
+// given a list of idents, produce the corresponding path string.
+pub fn path_name_i(idents: &[ident]) -> ~str {
     // FIXME: Bad copies (#2543 -- same for everything else that says "bad")
     str::connect(idents.map(|i| copy *token::interner_get(i.name)), ~"::")
 }
-
-
-pub fn path_to_ident(p: @Path) -> ident { copy *p.idents.last() }
 
 pub fn local_def(id: node_id) -> def_id {
     ast::def_id { crate: local_crate, node: id }
@@ -577,11 +575,8 @@ pub enum Privacy {
 
 // HYGIENE FUNCTIONS
 
-/// Construct an identifier with the given name and an empty context:
-pub fn new_ident(name: Name) -> ident { ident {name: name, ctxt: 0}}
-
 /// Extend a syntax context with a given mark
-pub fn new_mark (m:Mrk, tail:SyntaxContext,table:&mut SCTable)
+pub fn new_mark(m:Mrk, tail:SyntaxContext,table:&mut SCTable)
     -> SyntaxContext {
     let key = (tail,m);
     // FIXME #5074 : can't use more natural style because we're missing

@@ -76,7 +76,11 @@ impl proto_parser for parser::Parser {
     }
 
     fn parse_message(&self, state: state) {
+<<<<<<< HEAD
         let mname = copy *interner_get(self.parse_ident().name);
+=======
+        let mname = copy *token::interner_get(self.parse_ident().name);
+>>>>>>> e823928... changing representation of AST nodes to exclude ident info
 
         let args = if *self.token == token::LPAREN {
             self.parse_unspanned_seq(
@@ -95,7 +99,13 @@ impl proto_parser for parser::Parser {
 
         let next = match *self.token {
           token::IDENT(_, _) => {
+<<<<<<< HEAD
             let name = copy *interner_get(self.parse_ident().name);
+=======
+            // this looks crazy... aren't we constructing an ident just
+            // to throw it away?
+            let name = copy *token::interner_get(self.parse_ident().name);
+>>>>>>> e823928... changing representation of AST nodes to exclude ident info
             let ntys = if *self.token == token::LT {
                 self.parse_unspanned_seq(
                     &token::LT,

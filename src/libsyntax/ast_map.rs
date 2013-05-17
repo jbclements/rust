@@ -196,13 +196,14 @@ pub fn map_pat(pat: @pat, cx: @mut Ctx, v: visit::vt<@mut Ctx>) {
     match pat.node {
         pat_ident(_, path, _) => {
             // Note: this is at least *potentially* a pattern...
-            cx.map.insert(pat.id, node_local(ast_util::path_to_ident(path)));
+            cx.map.insert(pat.id, node_local(copy *path.idents.last()));
         }
         _ => ()
     }
 
     visit::visit_pat(pat, cx, v);
 }
+
 
 pub fn map_method(impl_did: def_id, impl_path: @path,
                   m: @method, cx: @mut Ctx) {

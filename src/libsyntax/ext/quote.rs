@@ -67,6 +67,7 @@ pub mod rt {
 
     */
 
+    // I believe that the cx here is never used...
     pub trait ToSource {
         // Takes a thing and generates a string containing rust code for it.
         pub fn to_source(&self) -> ~str;

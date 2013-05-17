@@ -44,16 +44,10 @@ pub fn seq_sep_none() -> SeqSep {
     }
 }
 
-// maps any token back to a string. not necessary if you know it's
-// an identifier....
-pub fn token_to_str(reader: @reader, token: &token::Token) -> ~str {
-    token::to_str(get_ident_interner(), token)
-}
-
 pub impl Parser {
     // convert a token to a string using self's reader
     fn token_to_str(&self, token: &token::Token) -> ~str {
-        token::to_str(get_ident_interner(), token)
+        token::to_str(token)
     }
 
     // convert the current token to a string using self's reader
@@ -213,7 +207,7 @@ pub impl Parser {
     fn check_strict_keywords(&self) {
         match *self.token {
             token::IDENT(_, false) => {
-                let w = token_to_str(self.reader, &copy *self.token);
+                let w = token::to_str(&copy *self.token);
                 self.check_strict_keywords_(w);
             }
             _ => ()
@@ -237,7 +231,7 @@ pub impl Parser {
     fn check_reserved_keywords(&self) {
         match *self.token {
             token::IDENT(_, false) => {
-                let w = token_to_str(self.reader, &copy *self.token);
+                let w = token::to_str(&copy *self.token);
                 self.check_reserved_keywords_(w);
             }
             _ => ()

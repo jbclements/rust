@@ -76,9 +76,9 @@ pub enum Token {
     LIT_INT(i64, ast::int_ty),
     LIT_UINT(u64, ast::uint_ty),
     LIT_INT_UNSUFFIXED(i64),
-    LIT_FLOAT(ast::ident, ast::float_ty),
-    LIT_FLOAT_UNSUFFIXED(ast::ident),
-    LIT_STR(ast::ident),
+    LIT_FLOAT(Name, ast::float_ty),
+    LIT_FLOAT_UNSUFFIXED(Name),
+    LIT_STR(Name),
 
     /* Name components */
     // an identifier contains an "is_mod_name" boolean,
@@ -91,7 +91,7 @@ pub enum Token {
     /* For interpolation */
     INTERPOLATED(nonterminal),
 
-    DOC_COMMENT(ast::ident),
+    DOC_COMMENT(Name),
     EOF,
 }
 
@@ -104,7 +104,7 @@ pub enum nonterminal {
     nt_pat( @ast::pat),
     nt_expr(@ast::expr),
     nt_ty(  @ast::Ty),
-    nt_ident(ast::ident, bool),
+    nt_ident(Name, bool),
     nt_path(@ast::Path),
     nt_tt(  @ast::token_tree), //needs @ed to break a circularity
     nt_matchers(~[ast::matcher])
@@ -125,7 +125,8 @@ pub fn binop_to_str(o: binop) -> ~str {
     }
 }
 
-pub fn to_str(in: @ident_interner, t: &Token) -> ~str {
+pub fn to_str(t: &Token) -> ~str {
+    let in = get_ident_interner();
     match *t {
       EQ => ~"=",
       LT => ~"<",

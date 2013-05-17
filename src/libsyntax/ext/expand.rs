@@ -928,7 +928,7 @@ mod test {
             None => fail!("test case fail")
         };
         let table = @mut new_sctable();
-        let a_name = 100; // enforced by testing_interner
+        let a_name = intern("a");
         let a2_name = gensym("a2");
         let renamer = new_ident_renamer(ast::ident{name:a_name,ctxt:empty_ctxt},
                                         a2_name,table);

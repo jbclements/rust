@@ -19,7 +19,7 @@ use diagnostic::{span_handler, mk_span_handler, mk_handler, Emitter};
 use parse::attr::parser_attr;
 use parse::lexer::reader;
 use parse::parser::Parser;
-use parse::token::{ident_interner, get_ident_interner};
+use parse::token::{get_ident_interner};
 
 use core::io;
 use core::option::{None, Option, Some};
@@ -306,9 +306,7 @@ pub fn filemap_to_tts(sess: @mut ParseSess, filemap: @FileMap)
     // it appears to me that the cfg doesn't matter here... indeed,
     // parsing tt's probably shouldn't require a parser at all.
     let cfg = ~[];
-    let srdr = lexer::new_string_reader(copy sess.span_diagnostic,
-                                        filemap,
-                                        get_ident_interner());
+    let srdr = lexer::new_string_reader(copy sess.span_diagnostic, filemap);
     let p1 = Parser(sess, cfg, srdr as @reader);
     p1.parse_all_token_trees()
 }
@@ -319,7 +317,6 @@ pub fn tts_to_parser(sess: @mut ParseSess,
                      cfg: ast::crate_cfg) -> Parser {
     let trdr = lexer::new_tt_reader(
         copy sess.span_diagnostic,
-        get_ident_interner(),
         None,
         tts
     );
@@ -345,7 +342,6 @@ mod test {
     use codemap::{span, BytePos, spanned};
     use opt_vec;
     use ast;
-    use ast_util::new_ident;
     use abi;
     use parse::parser::Parser;
     use parse::token::{intern, str_to_ident};
@@ -378,7 +374,7 @@ mod test {
                               callee_id:2,
                               node:ast::expr_path(@ast::Path {span:sp(0,1),
                                                               global:false,
-                                                              idents:~[str_to_ident("a")],
+                                                              idents:~[token::str_to_ident("a")],
                                                               rp:None,
                                                               types:~[]}),
                               span:sp(0,1)})
@@ -440,12 +436,13 @@ mod test {
                               node:ast::expr_ret(
                                   Some(@ast::expr{id:1,callee_id:2,
                                                   node:ast::expr_path(
-                                                      @ast::Path{span:sp(7,8),
-                                                                 global:false,
-                                                                 idents:~[str_to_ident("d")],
-                                                                 rp:None,
-                                                                 types:~[]
-                                                                }),
+                                                      @ast::Path{
+                                                          span:sp(7,8),
+                                                          global:false,
+                                                          idents:~[token::str_to_ident("d")],
+                                                          rp:None,
+                                                          types:~[]
+                                                      }),
                                                   span:sp(7,8)})),
                               span:sp(0,8)})
     }
@@ -460,7 +457,7 @@ mod test {
                                @ast::Path{
                                    span:sp(0,1),
                                    global:false,
-                                   idents:~[str_to_ident("b")],
+                                   idents:~[token::str_to_ident("b")],
                                    rp:None,
                                    types: ~[]}),
                            span: sp(0,1)},
@@ -481,7 +478,7 @@ mod test {
                                                   @ast::Path{
                                                       span:sp(0,1),
                                                       global:false,
-                                                      idents:~[str_to_ident("b")],
+                                                      idents:~[token::str_to_ident("b")],
                                                       rp: None,
                                                       types: ~[]},
                                                   None // no idea
@@ -500,7 +497,7 @@ mod test {
                                         span:sp(4,4), // this is bizarre...
                                         // check this in the original parser?
                                         global:false,
-                                        idents:~[str_to_ident("int")],
+                                        idents:~[token::str_to_ident("int")],
                                         rp: None,
                                         types: ~[]},
                                                        2),
@@ -510,7 +507,7 @@ mod test {
                                                            @ast::Path{
                                                                span:sp(0,1),
                                                                global:false,
-                                                               idents:~[str_to_ident("b")],
+                                                               idents:~[token::str_to_ident("b")],
                                                                rp: None,
                                                                types: ~[]},
                                                            None // no idea
@@ -526,7 +523,7 @@ mod test {
         // assignment order of the node_ids.
         assert_eq!(string_to_item(@~"fn a (b : int) { b; }"),
                   Some(
-                      @ast::item{ident:str_to_ident("a"),
+                      @ast::item{ident:token::str_to_ident("a"),
                             attrs:~[],
                             id: 10, // fixme
                             node: ast::item_fn(ast::fn_decl{
@@ -536,7 +533,7 @@ mod test {
                                                 node: ast::ty_path(@ast::Path{
                                         span:sp(10,13),
                                         global:false,
-                                        idents:~[str_to_ident("int")],
+                                        idents:~[token::str_to_ident("int")],
                                         rp: None,
                                         types: ~[]},
                                                        2),
@@ -547,7 +544,7 @@ mod test {
                                                        @ast::Path{
                                                            span:sp(6,7),
                                                            global:false,
-                                                           idents:~[str_to_ident("b")],
+                                                           idents:~[token::str_to_ident("b")],
                                                            rp: None,
                                                            types: ~[]},
                                                        None // no idea
@@ -578,7 +575,7 @@ mod test {
                                                         @ast::Path{
                                                             span:sp(17,18),
                                                             global:false,
-                                                            idents:~[str_to_ident("b")],
+                                                            idents:~[token::str_to_ident("b")],
                                                             rp:None,
                                                             types: ~[]}),
                                                     span: sp(17,18)},
