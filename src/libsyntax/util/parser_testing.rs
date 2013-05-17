@@ -10,12 +10,11 @@
 
 use core::option::{Option,None};
 use ast;
-use ast_util::{new_ident};
 use parse::{new_parse_sess};
 use parse::{ParseSess,string_to_filemap,filemap_to_tts};
 use parse::{new_parser_from_source_str};
 use parse::parser::Parser;
-use parse::token::{intern};
+use parse::token;
 
 // map a string to tts, using a made-up filename: return both the token_trees
 // and the ParseSess
@@ -66,14 +65,9 @@ pub fn string_to_pat(source_str : @~str) -> @ast::pat {
     string_to_parser(source_str).parse_pat(false)
 }
 
-// compose new_ident and intern:
-pub fn str_to_ident(str : &str) -> ast::ident {
-    new_ident(intern(str))
-}
-
 // convert a vector of strings to a vector of ast::idents
 pub fn strs_to_idents(ids: ~[&str]) -> ~[ast::ident] {
-    ids.map(|u| str_to_ident(*u))
+    ids.map(|u| token::str_to_ident(*u))
 }
 
 

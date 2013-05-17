@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use ast;
+use ast::Name;
 use ast_util;
 use parse::token;
 use util::interner::StrInterner;
@@ -172,28 +173,28 @@ pub fn to_str(in: @ident_interner, t: &Token) -> ~str {
       }
       LIT_INT_UNSUFFIXED(i) => { i.to_str() }
       LIT_FLOAT(s, t) => {
-        let mut body = copy *in.get(s);
+        let mut body = copy *ident_to_str(s);
         if body.ends_with(~".") {
             body = body + ~"0";  // `10.f` is not a float literal
         }
         body + ast_util::float_ty_to_str(t)
       }
       LIT_FLOAT_UNSUFFIXED(s) => {
-        let mut body = copy *in.get(s);
+        let mut body = copy *ident_to_str(s);
         if body.ends_with(~".") {
             body = body + ~"0";  // `10.f` is not a float literal
         }
         body
       }
-      LIT_STR(s) => { ~"\"" + str::escape_default(*in.get(s)) + ~"\"" }
+      LIT_STR(s) => { ~"\"" + str::escape_default(*ident_to_str(s)) + ~"\"" }
 
       /* Name components */
-      IDENT(s, _) => copy *in.get(s),
-      LIFETIME(s) => fmt!("'%s", *in.get(s)),
+      IDENT(s, _) => copy *in.get(s.name),
+      LIFETIME(s) => fmt!("'%s", *in.get(s.name)),
       UNDERSCORE => ~"_",
 
       /* Other */
-      DOC_COMMENT(s) => copy *in.get(s),
+      DOC_COMMENT(s) => copy *ident_to_str(s),
       EOF => ~"<eof>",
       INTERPOLATED(ref nt) => {
         match nt {
@@ -389,26 +390,22 @@ pub struct ident_interner {
 }
 
 pub impl ident_interner {
-    // I'm torn as to whether these should produce idents or
-    // just uints.
-    fn intern(&self, val: &str) -> ast::ident {
-        ast::ident { name: self.interner.intern(val), ctxt: 0 }
+    fn intern(&self, val: &str) -> Name {
+        self.interner.intern(val)
     }
-    fn gensym(&self, val: &str) -> ast::ident {
-        ast::ident { name: self.interner.gensym(val), ctxt: 0 }
+    fn gensym(&self, val: &str) -> Name {
+        self.interner.gensym(val)
     }
-    fn get(&self, idx: ast::ident) -> @~str {
-        self.interner.get(idx.name)
+    fn get(&self, idx: Name) -> @~str {
+        self.interner.get(idx)
     }
+    // is this really something that should be exposed?
     fn len(&self) -> uint {
         self.interner.len()
     }
     fn find_equiv<Q:Hash + IterBytes + Equiv<@~str>>(&self, val: &Q)
-                                                     -> Option<ast::ident> {
-        match self.interner.find_equiv(val) {
-            Some(v) => Some(ast::ident { name: v, ctxt: 0 }),
-            None => None,
-        }
+                                                     -> Option<Name> {
+        self.interner.find_equiv(val)
     }
 }
 
@@ -487,9 +484,35 @@ pub fn mk_fake_ident_interner() -> @ident_interner {
 }
 
 // maps a string to its interned representation
-pub fn intern(str : &str) -> uint {
+pub fn intern(str : &str) -> Name {
     let interner = get_ident_interner();
-    interner.intern(str).name
+    interner.intern(str)
+}
+
+// gensyms a new uint, using the current interner
+pub fn gensym(str : &str) -> Name {
+    let interner = get_ident_interner();
+    interner.gensym(str)
+}
+
+// map an interned representation back to a string
+pub fn interner_get(name : Name) -> @~str {
+    get_ident_interner().get(name)
+}
+
+// maps an identifier to the string that it corresponds to
+pub fn ident_to_str(id : ast::ident) -> @~str {
+    interner_get(id.name)
+}
+
+// maps a string to an identifier with an empty syntax context
+pub fn str_to_ident(str : &str) -> ast::ident {
+    ast::new_ident(intern(str))
+}
+
+// maps a string to a gensym'ed identifier
+pub fn gensym_ident(str : &str) -> ast::ident {
+    ast::new_ident(gensym(str))
 }
 
 /*
