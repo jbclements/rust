@@ -22,6 +22,7 @@ use syntax::ast::{int_ty, uint_ty, float_ty};
 use syntax::codemap::span;
 use syntax::diagnostic;
 use syntax::parse::ParseSess;
+use syntax::parse::token;
 use syntax::{ast, codemap};
 use syntax::abi;
 use syntax;
@@ -273,13 +274,13 @@ pub impl Session_ {
     }
 
     fn str_of(@self, id: ast::ident) -> @~str {
-        self.parse_sess.interner.get(id)
+        token::interner_get(id)
     }
     fn ident_of(@self, st: &str) -> ast::ident {
-        self.parse_sess.interner.intern(st)
+        token::str_to_ident(st)
     }
     fn intr(@self) -> @syntax::parse::token::ident_interner {
-        self.parse_sess.interner
+        token::get_ident_interner()
     }
 }
 
