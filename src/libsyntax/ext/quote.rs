@@ -429,6 +429,16 @@ fn mk_ident(cx: @ext_ctxt, sp: span, ident: ast::ident) -> @ast::expr {
                           ~[e_str])
 }
 
+// Lift a name to the expr that evaluates to that ident.
+fn mk_name(cx: @ext_ctxt, sp: span, name: ast::Name) -> @ast::expr {
+    // this use of interner_get actually frightens me....
+    let e_str = build::mk_uniq_str(cx, sp, token::interner_get(name));
+    build::mk_method_call(cx, sp,
+                          build::mk_path(cx, sp, ids_ext(~[~"ext_cx"])),
+                          id_ext("name_of"),
+                          ~[e_str])
+}
+
 fn mk_bytepos(cx: @ext_ctxt, sp: span, bpos: BytePos) -> @ast::expr {
     let path = ids_ext(~[~"BytePos"]);
     let arg = build::mk_uint(cx, sp, bpos.to_uint());
@@ -514,7 +524,7 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: &token::Token) -> @ast::expr {
                                   ~[e_i64]);
         }
 
-        LIT_FLOAT(fident, fty) => {
+        LIT_FLOAT(fname, fty) => {
             let s_fty = match fty {
                 ast::ty_f => ~"ty_f",
                 ast::ty_f32 => ~"ty_f32",
@@ -524,17 +534,17 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: &token::Token) -> @ast::expr {
                 build::mk_path(cx, sp,
                                ids_ext(~[s_fty]));
 
-            let e_fident = mk_ident(cx, sp, fident);
+            let e_fname = mk_name(cx, sp, fname);
 
             return build::mk_call(cx, sp,
                                   ids_ext(~[~"LIT_FLOAT"]),
-                                  ~[e_fident, e_fty]);
+                                  ~[e_fname, e_fty]);
         }
 
-        LIT_STR(ident) => {
+        LIT_STR(name) => {
             return build::mk_call(cx, sp,
                                   ids_ext(~[~"LIT_STR"]),
-                                  ~[mk_ident(cx, sp, ident)]);
+                                  ~[mk_name(cx, sp, name)]);
         }
 
         IDENT(ident, b) => {
@@ -550,10 +560,10 @@ fn mk_token(cx: @ext_ctxt, sp: span, tok: &token::Token) -> @ast::expr {
                                   ~[mk_ident(cx, sp, ident)]);
         }
 
-        DOC_COMMENT(ident) => {
+        DOC_COMMENT(name) => {
             return build::mk_call(cx, sp,
                                   ids_ext(~[~"DOC_COMMENT"]),
-                                  ~[mk_ident(cx, sp, ident)]);
+                                  ~[mk_name(cx, sp, name)]);
         }
 
         INTERPOLATED(_) => fail!("quote! with interpolated token"),

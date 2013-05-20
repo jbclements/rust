@@ -625,6 +625,7 @@ pub enum lit_ {
     lit_int(i64, int_ty),
     lit_uint(u64, uint_ty),
     lit_int_unsuffixed(i64),
+    // these are already interned in the tokens, could be interned here too...
     lit_float(@~str, float_ty),
     lit_float_unsuffixed(@~str),
     lit_nil,

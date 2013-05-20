@@ -235,6 +235,7 @@ pub trait ext_ctxt {
     /* for unhygienic identifier transformation */
     fn str_of(&self, id: ast::ident) -> ~str;
     fn ident_of(&self, st: &str) -> ast::ident;
+    fn name_of(&self, st: &str) -> ast::Name;
 }
 
 pub fn mk_ctxt(parse_sess: @mut parse::ParseSess, cfg: ast::crate_cfg)
@@ -327,6 +328,11 @@ pub fn mk_ctxt(parse_sess: @mut parse::ParseSess, cfg: ast::crate_cfg)
         fn ident_of(&self, st: &str) -> ast::ident {
             str_to_ident(st)
         }
+        // first, we have to split ident_of into two functions, that
+        // both do exactly the same thing.
+        fn name_of(&self, st: &str) -> ast::ident {
+            str_to_ident(st)
+        }
     }
     let imp: @CtxtRepr = @CtxtRepr {
         parse_sess: parse_sess,
@@ -378,7 +384,7 @@ pub fn get_single_str_from_tts(cx: @ext_ctxt,
     }
 
     match tts[0] {
-        ast::tt_tok(_, token::LIT_STR(ident)) => cx.str_of(ident),
+        ast::tt_tok(_, token::LIT_STR(n)) => token::interner_get(n),
         _ =>
         cx.span_fatal(sp, fmt!("%s requires a string.", name))
     }

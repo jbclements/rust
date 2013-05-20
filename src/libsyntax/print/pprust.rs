@@ -745,7 +745,7 @@ pub fn print_tt(s: @ps, tt: &ast::token_tree) {
       }
       ast::tt_nonterminal(_, name) => {
         word(s.s, ~"$");
-        print_ident(s, name);
+        print_name(s, name);
       }
     }
 }
@@ -1469,7 +1469,11 @@ pub fn print_decl(s: @ps, decl: @ast::decl) {
 }
 
 pub fn print_ident(s: @ps, ident: ast::ident) {
-    word(s.s, *ident_to_str(ident));
+    print_name(s,ident.name);
+}
+
+pub fn print_name(s: @ps, name: ast::Name) {
+    word(s.s, *token::interner_get(name));
 }
 
 pub fn print_for_decl(s: @ps, loc: @ast::local, coll: @ast::expr) {

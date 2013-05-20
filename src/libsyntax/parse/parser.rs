@@ -893,10 +893,10 @@ pub impl Parser {
             token::LIT_INT(i, it) => lit_int(i, it),
             token::LIT_UINT(u, ut) => lit_uint(u, ut),
             token::LIT_INT_UNSUFFIXED(i) => lit_int_unsuffixed(i),
-            token::LIT_FLOAT(s, ft) => lit_float(self.id_to_str(s), ft),
+            token::LIT_FLOAT(s, ft) => lit_float(token::interner_get(s), ft),
             token::LIT_FLOAT_UNSUFFIXED(s) =>
-                lit_float_unsuffixed(self.id_to_str(s)),
-            token::LIT_STR(s) => lit_str(self.id_to_str(s)),
+                lit_float_unsuffixed(token::interner_get(s)),
+            token::LIT_STR(s) => lit_str(token::interner_get(s)),
             token::LPAREN => { self.expect(&token::RPAREN); lit_nil },
             _ => { self.unexpected_last(tok); }
         }
