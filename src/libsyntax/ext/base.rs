@@ -23,8 +23,7 @@ use std::hashmap::HashMap;
 
 // new-style macro! tt code:
 //
-//    SyntaxExpanderTT, SyntaxExpanderTTItem, MacResult,
-//    NormalTT, IdentTT
+//    MacResult, NormalTT, IdentTT
 //
 // also note that ast::mac used to have a bunch of extraneous cases and
 // is now probably a redundant AST node, can be merged with
@@ -41,20 +40,10 @@ pub type ItemDecorator = @fn(@ExtCtxt,
                              ~[@ast::item])
                           -> ~[@ast::item];
 
-pub struct SyntaxExpanderTT {
-    expander: SyntaxExpanderTTFun,
-    span: Option<span>
-}
-
 pub type SyntaxExpanderTTFun = @fn(@ExtCtxt,
                                    span,
                                    &[ast::token_tree])
                                 -> MacResult;
-
-pub struct SyntaxExpanderTTItem {
-    expander: SyntaxExpanderTTItemFun,
-    span: Option<span>
-}
 
 pub type SyntaxExpanderTTItemFun = @fn(@ExtCtxt,
                                        span,
@@ -77,7 +66,7 @@ pub enum SyntaxExtension {
     ItemDecorator(ItemDecorator),
 
     // Token-tree expanders
-    NormalTT(SyntaxExpanderTT),
+    NormalTT(SyntaxExpanderTTFun, Option<span>),
 
     // An IdentTT is a macro that has an
     // identifier in between the name of the
@@ -87,7 +76,7 @@ pub enum SyntaxExtension {
 
     // perhaps macro_rules! will lose its odd special identifier argument,
     // and this can go away also
-    IdentTT(SyntaxExpanderTTItem),
+    IdentTT(SyntaxExpanderTTItemFun, Option<span>),
 }
 
 // The SyntaxEnv is the environment that's threaded through the expansion
@@ -122,11 +111,11 @@ type RenameList = ~[(ast::ident,Name)];
 pub fn syntax_expander_table() -> SyntaxEnv {
     // utility function to simplify creating NormalTT syntax extensions
     fn builtin_normal_tt(f: SyntaxExpanderTTFun) -> @Transformer {
-        @SE(NormalTT(SyntaxExpanderTT{expander: f, span: None}))
+        @SE(NormalTT(f, None))
     }
     // utility function to simplify creating IdentTT syntax extensions
     fn builtin_item_tt(f: SyntaxExpanderTTItemFun) -> @Transformer {
-        @SE(IdentTT(SyntaxExpanderTTItem{expander: f, span: None}))
+        @SE(IdentTT(f, None))
     }
     let mut syntax_expanders = HashMap::new();
     // NB identifier starts with space, and can't conflict with legal idents

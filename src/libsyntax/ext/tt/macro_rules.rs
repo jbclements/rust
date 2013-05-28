@@ -148,6 +148,6 @@ pub fn add_new_extension(cx: @ExtCtxt,
 
     return MRDef(MacroDef{
         name: ident_to_str(&name),
-        ext: NormalTT(base::SyntaxExpanderTT{expander: exp, span: Some(sp)})
+        ext: NormalTT(exp, Some(sp))
     });
 }
