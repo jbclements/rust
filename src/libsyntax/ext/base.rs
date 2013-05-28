@@ -37,7 +37,7 @@ pub struct MacroDef {
     ext: SyntaxExtension
 }
 
-pub type ItemDecorator = @fn(@ExtCtxt,
+pub type ItemDecoratorFun = @fn(@ExtCtxt,
                              span,
                              @ast::meta_item,
                              ~[@ast::item])
@@ -66,7 +66,7 @@ pub enum MacResult {
 pub enum SyntaxExtension {
 
     // #[auto_encode] and such
-    ItemDecorator(ItemDecorator),
+    ItemDecorator(ItemDecoratorFun),
 
     // Token-tree expanders
     NormalTT(SyntaxExpanderTTFun, Option<span>),
