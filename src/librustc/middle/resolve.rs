@@ -4512,6 +4512,7 @@ impl Resolver {
                                        path.span);
     }
 
+    // resolve a single identifier (used as a varref)
     pub fn resolve_identifier(@mut self,
                               identifier: ident,
                               namespace: Namespace,
