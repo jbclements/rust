@@ -108,6 +108,7 @@ pub mod arena;
 pub mod par;
 pub mod base64;
 pub mod rl;
+pub mod sexp;
 pub mod workcache;
 #[path="num/bigint.rs"]
 pub mod bigint;
