@@ -28,7 +28,7 @@ use syntax::ast_util::{Privacy, Public, Private};
 use syntax::ast_util::{variant_visibility_to_privacy, visibility_to_privacy};
 use syntax::attr::{attr_metas, contains_name};
 use syntax::parse::token;
-use syntax::parse::token::ident_interner;
+use syntax::parse::token::{ident_interner, interner_get};
 use syntax::parse::token::special_idents;
 use syntax::print::pprust::path_to_str;
 use syntax::codemap::{span, dummy_sp, BytePos};
@@ -301,7 +301,7 @@ pub enum DuplicateCheckingMode {
 
 /// One local scope.
 pub struct Rib {
-    bindings: @mut HashMap<ident,def_like>,
+    bindings: @mut HashMap<Name,def_like>,
     self_binding: @mut Option<def_like>,
     kind: RibKind,
 }
@@ -3451,7 +3451,7 @@ impl Resolver {
         let mut i = ribs.len();
         while i != 0 {
             i -= 1;
-            match ribs[i].bindings.find(&name) {
+            match ribs[i].bindings.find(&name.name) {
                 Some(&def_like) => {
                     return self.upvarify(ribs, i, def_like, span,
                                          allow_capturing_self);
@@ -3548,7 +3548,7 @@ impl Resolver {
                 // Create a new rib for the self type.
                 let self_type_rib = @Rib(NormalRibKind);
                 self.type_ribs.push(self_type_rib);
-                self_type_rib.bindings.insert(self.type_self_ident,
+                self_type_rib.bindings.insert(self.type_self_ident.name,
                                               dl_def(def_self_ty(item.id)));
 
                 // Create a new rib for the trait-wide type parameters.
@@ -3688,7 +3688,7 @@ impl Resolver {
                     // the item that bound it
                     self.record_def(type_parameter.id,
                                     def_typaram_binder(node_id));
-                    function_type_rib.bindings.insert(name, def_like);
+                    function_type_rib.bindings.insert(name.name, def_like);
                 }
             }
 
@@ -4304,7 +4304,7 @@ impl Resolver {
                                     let this = &mut *self;
                                     let last_rib = this.value_ribs[
                                             this.value_ribs.len() - 1];
-                                    last_rib.bindings.insert(ident,
+                                    last_rib.bindings.insert(ident.name,
                                                              dl_def(def));
                                     bindings_list.insert(ident, pat_id);
                                 }
@@ -4325,7 +4325,7 @@ impl Resolver {
                                     let this = &mut *self;
                                     let last_rib = this.value_ribs[
                                             this.value_ribs.len() - 1];
-                                    last_rib.bindings.insert(ident,
+                                    last_rib.bindings.insert(ident.name,
                                                              dl_def(def));
                                 }
                             }
@@ -4844,7 +4844,7 @@ impl Resolver {
         while j != 0 {
             j -= 1;
             for this.value_ribs[j].bindings.each_key |&k| {
-                maybes.push(this.session.str_of(k));
+                maybes.push(interner_get(k));
                 values.push(uint::max_value);
             }
         }
@@ -5014,7 +5014,7 @@ impl Resolver {
                         let this = &mut *self;
                         let def_like = dl_def(def_label(expr.id));
                         let rib = this.label_ribs[this.label_ribs.len() - 1];
-                        rib.bindings.insert(label, def_like);
+                        rib.bindings.insert(label.name, def_like);
                     }
 
                     visit_expr(expr, ((), visitor));
@@ -5418,3 +5418,4 @@ pub fn resolve_crate(session: Session,
         trait_map: trait_map
     }
 }
+
