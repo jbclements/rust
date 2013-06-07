@@ -487,11 +487,13 @@ pub fn expand_block(extsbox: @mut SyntaxEnv,
                     orig: @fn(&blk_, span, @ast_fold) -> (blk_, span))
                  -> (blk_, span) {
     // see note below about treatment of exts table
-    with_exts_frame!(extsbox,false,orig(blk,sp,fld))
+    (with_exts_frame!(extsbox,false,
+                      expand_block_elts(*extsbox, blk, fld)),
+     sp)
 }
 
 
-pub fn expand_block_elts(exts: SyntaxEnv, b: &blk_, sp: span, fld: @ast_fold) -> blk_ {
+pub fn expand_block_elts(exts: SyntaxEnv, b: &blk_, fld: @ast_fold) -> blk_ {
     let block_info = get_block_info(exts);
     let pending_renames = block_info.pending_renames;
     let mut rename_fld = renames_to_fold(pending_renames);
