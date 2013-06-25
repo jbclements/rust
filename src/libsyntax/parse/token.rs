@@ -11,7 +11,7 @@
 use core::prelude::*;
 
 use ast;
-use ast::Name;
+use ast::{Name, Mrk};
 use ast_util;
 use parse::token;
 use util::interner::StrInterner;
@@ -549,6 +549,11 @@ pub fn gensym_ident(str : &str) -> ast::ident {
 pub fn fresh_name(src_name : &ast::ident) -> Name {
     let num = rand::rng().gen_uint_range(0,0xffff);
     gensym(fmt!("%s_%u",ident_to_str(src_name),num))
+}
+
+// create a fresh mark.
+pub fn fresh_mark() -> Mrk {
+    gensym("mark")
 }
 
 /**
