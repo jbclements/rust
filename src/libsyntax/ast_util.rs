@@ -624,7 +624,7 @@ pub enum Privacy {
 // HYGIENE FUNCTIONS
 
 /// Construct an identifier with the given name and an empty context:
-pub fn new_ident(name: Name) -> ident { ident {name: name, ctxt: 0}}
+pub fn new_ident(name: Name) -> ident { ident {name: name, ctxt: empty_ctxt}}
 
 /// Extend a syntax context with a given mark
 pub fn new_mark(m:Mrk, tail:SyntaxContext) -> SyntaxContext {

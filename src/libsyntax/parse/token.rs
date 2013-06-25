@@ -546,9 +546,9 @@ pub fn gensym_ident(str : &str) -> ast::ident {
 // by using a gensym with a name that has a random number
 // at the end. So, the gensym guarantees the uniqueness,
 // and the int helps to avoid confusion.
-pub fn fresh_name(src_name : &str) -> Name {
+pub fn fresh_name(src_name : &ast::ident) -> Name {
     let num = rand::rng().gen_uint_range(0,0xffff);
-   gensym(fmt!("%s_%u",src_name,num))
+    gensym(fmt!("%s_%u",ident_to_str(src_name),num))
 }
 
 /**
@@ -687,10 +687,11 @@ pub fn is_reserved_keyword(tok: &Token) -> bool {
 
 #[cfg(test)]
 mod test {
+    use ast;
     use super::*;
     use std::io;
     #[test] fn t1() {
-        let a = fresh_name("ghi");
+        let a = fresh_name(~str_to_ident("ghi"));
         io::println(fmt!("interned name: %u,\ntextual name: %s\n",
                          a,interner_get(a)));
     }
