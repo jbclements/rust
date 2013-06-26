@@ -192,10 +192,6 @@ pub fn compile_rest(sess: Session,
                      syntax::ext::expand::expand_crate(sess.parse_sess, copy cfg,
                                                        crate_opt.unwrap())));
 
-        // FIXME #6993: this should disappear:
-        crate_opt = Some(time(time_passes, ~"hygienic collapse", ||
-                     @syntax::ext::expand::mtwt_resolve_crate(crate_opt.unwrap())));
-
         crate_opt = Some(time(time_passes, ~"configuration", ||
                      front::config::strip_unconfigured_items(crate_opt.unwrap())));
 
