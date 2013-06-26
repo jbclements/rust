@@ -4495,12 +4495,14 @@ impl Resolver {
         }
 
         if path.global {
+            // FIXME don't forget about this one.
             return self.resolve_crate_relative_path(path,
                                                  self.xray_context,
                                                  namespace);
         }
 
         if path.idents.len() > 1 {
+            // FIXME don't forget about this one.
             return self.resolve_module_relative_path(path,
                                                      self.xray_context,
                                                      namespace);
