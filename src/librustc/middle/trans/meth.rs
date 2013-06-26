@@ -333,7 +333,7 @@ pub fn trans_static_method_callee(bcx: block,
 
 pub fn method_from_methods(ms: &[@ast::method], name: ast::ident)
     -> Option<ast::def_id> {
-    ms.iter().find_(|m| m.ident == name).map(|m| ast_util::local_def(m.id))
+    ms.iter().find_(|m| m.ident.name == name.name).map(|m| ast_util::local_def(m.id))
 }
 
 pub fn method_with_name_or_default(ccx: &mut CrateContext,
@@ -363,7 +363,7 @@ pub fn method_with_name_or_default(ccx: &mut CrateContext,
         match pmm.find(&impl_id) {
             Some(pmis) => {
                 for pmis.iter().advance |pmi| {
-                    if pmi.method_info.ident == name {
+                    if pmi.method_info.ident.name == name.name {
                         debug!("pmi.method_info.did = %?",
                                pmi.method_info.did);
                         did = Some(pmi.method_info.did);

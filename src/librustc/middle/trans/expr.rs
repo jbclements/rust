@@ -861,7 +861,7 @@ fn trans_lvalue_unadjusted(bcx: block, expr: @ast::expr) -> DatumBlock {
         let base_datum = unpack_datum!(bcx, trans_to_datum(bcx, base));
         let repr = adt::represent_type(bcx.ccx(), base_datum.ty);
         do with_field_tys(bcx.tcx(), base_datum.ty, None) |discr, field_tys| {
-            let ix = ty::field_idx_strict(bcx.tcx(), field, field_tys);
+            let ix = ty::field_idx_strict(bcx.tcx(), field.name, field_tys);
             DatumBlock {
                 datum: do base_datum.get_element(bcx,
                                                  field_tys[ix].mt.ty,
@@ -1148,7 +1148,7 @@ fn trans_rec_or_struct(bcx: block,
         let mut need_base = vec::from_elem(field_tys.len(), true);
 
         let numbered_fields = do fields.map |field| {
-            let opt_pos = field_tys.iter().position(|field_ty| field_ty.ident == field.node.ident);
+            let opt_pos = field_tys.iter().position(|field_ty| field_ty.ident.name == field.node.ident.name);
             match opt_pos {
                 Some(i) => {
                     need_base[i] = false;

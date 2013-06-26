@@ -367,7 +367,7 @@ fn const_expr_unadjusted(cx: @mut CrateContext, e: &ast::expr) -> ValueRef {
               let brepr = adt::represent_type(cx, bt);
               let bv = const_expr(cx, base);
               do expr::with_field_tys(cx.tcx, bt, None) |discr, field_tys| {
-                  let ix = ty::field_idx_strict(cx.tcx, field, field_tys);
+                  let ix = ty::field_idx_strict(cx.tcx, field.name, field_tys);
                   adt::const_get_field(cx, brepr, bv, discr, ix)
               }
           }
@@ -488,7 +488,7 @@ fn const_expr_unadjusted(cx: @mut CrateContext, e: &ast::expr) -> ValueRef {
               do expr::with_field_tys(tcx, ety, Some(e.id))
                   |discr, field_tys| {
                   let cs = field_tys.map(|field_ty| {
-                      match fs.iter().find_(|f| field_ty.ident == f.node.ident) {
+                      match fs.iter().find_(|f| field_ty.ident.name == f.node.ident.name) {
                           Some(f) => const_expr(cx, (*f).node.expr),
                           None => {
                               cx.tcx.sess.span_bug(e.span, "missing struct field");

@@ -104,6 +104,7 @@ use syntax::ast::{sty_uniq, sty_static, node_id};
 use syntax::ast::{m_const, m_mutbl, m_imm};
 use syntax::ast;
 use syntax::ast_map;
+use syntax::parse::token;
 
 #[deriving(Eq)]
 pub enum CheckTraitsFlag {
@@ -125,7 +126,7 @@ pub fn lookup(
         self_expr: @ast::expr,              // The expression `a`.
         callee_id: node_id,                 /* Where to store `a.b`'s type,
                                              * also the scope of the call */
-        m_name: ast::ident,                 // The ident `b`.
+        m_name: ast::Name,                  // The name `b`.
         self_ty: ty::t,                     // The type of `a`.
         supplied_tps: &[ty::t],             // The list of types X, Y, ... .
         deref_args: check::DerefArgs,       // Whether we autopointer first.
@@ -157,7 +158,7 @@ pub struct LookupContext<'self> {
     expr: @ast::expr,
     self_expr: @ast::expr,
     callee_id: node_id,
-    m_name: ast::ident,
+    m_name: ast::Name,
     supplied_tps: &'self [ty::t],
     impl_dups: @mut HashSet<def_id>,
     inherent_candidates: @mut ~[Candidate],
@@ -370,7 +371,7 @@ impl<'self> LookupContext<'self> {
             let pos = {
                 match trait_methods.iter().position(|m| {
                     m.explicit_self != ast::sty_static &&
-                        m.ident == self.m_name })
+                        m.ident.name == self.m_name })
                 {
                     Some(pos) => pos,
                     None => {
@@ -412,7 +413,7 @@ impl<'self> LookupContext<'self> {
 
         let tcx = self.tcx();
         let ms = ty::trait_methods(tcx, did);
-        let index = match ms.iter().position(|m| m.ident == self.m_name) {
+        let index = match ms.iter().position(|m| m.ident.name == self.m_name) {
             Some(i) => i,
             None => { return; } // no method with the right name
         };
@@ -466,7 +467,7 @@ impl<'self> LookupContext<'self> {
         // First, try self methods
         let mut method_info: Option<MethodInfo> = None;
         let methods = ty::trait_methods(tcx, did);
-        match methods.iter().position(|m| m.ident == self.m_name) {
+        match methods.iter().position(|m| m.ident.name == self.m_name) {
             Some(i) => {
                 method_info = Some(MethodInfo {
                     method_ty: methods[i],
@@ -482,7 +483,7 @@ impl<'self> LookupContext<'self> {
             for ty::trait_supertraits(tcx, did).iter().advance |trait_ref| {
                 let supertrait_methods =
                     ty::trait_methods(tcx, trait_ref.def_id);
-                match supertrait_methods.iter().position(|m| m.ident == self.m_name) {
+                match supertrait_methods.iter().position(|m| m.ident.name == self.m_name) {
                     Some(i) => {
                         method_info = Some(MethodInfo {
                             method_ty: supertrait_methods[i],
@@ -533,12 +534,12 @@ impl<'self> LookupContext<'self> {
             return; // already visited
         }
         debug!("push_candidates_from_impl: %s %s %s",
-               self.m_name.repr(self.tcx()),
+               token::interner_get(self.m_name),
                impl_info.ident.repr(self.tcx()),
                impl_info.methods.map(|m| m.ident).repr(self.tcx()));
 
         let idx = {
-            match impl_info.methods.iter().position(|m| m.ident == self.m_name) {
+            match impl_info.methods.iter().position(|m| m.ident.name == self.m_name) {
                 Some(idx) => idx,
                 None => { return; } // No method with the right name.
             }
