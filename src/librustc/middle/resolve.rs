@@ -55,7 +55,8 @@ pub struct binding_info {
 }
 
 // Map from the name in a pattern to its binding mode.
-pub type BindingMap = HashMap<ident,binding_info>;
+// FIXME #6993: should probably map Names to binding_info
+pub type BindingMap = HashMap<Name,binding_info>;
 
 // Implementation resolution
 //
@@ -424,11 +425,13 @@ pub struct Module {
     def_id: Option<def_id>,
     kind: ModuleKind,
 
+    // FIXME #6993: should probably map Names to binding_info
     children: @mut HashMap<ident, @mut NameBindings>,
     imports: @mut ~[@ImportDirective],
 
     // The external module children of this node that were declared with
     // `extern mod`.
+    // FIXME #6993: should probably map Names to binding_info
     external_module_children: @mut HashMap<ident, @mut Module>,
 
     // The anonymous children of this node. Anonymous children are pseudo-
@@ -448,6 +451,7 @@ pub struct Module {
     anonymous_children: @mut HashMap<node_id,@mut Module>,
 
     // The status of resolving each import in this module.
+    // FIXME #6993: should probably map Names to binding_info
     import_resolutions: @mut HashMap<ident, @mut ImportResolution>,
 
     // The number of unresolved globs that this module exports.
@@ -721,6 +725,7 @@ pub fn NameBindings() -> NameBindings {
 
 /// Interns the names of the primitive types.
 pub struct PrimitiveTypeTable {
+    // FIXME #6993: should probably map Names to binding_info
     primitive_types: HashMap<ident,prim_ty>,
 }
 
@@ -831,6 +836,7 @@ pub struct Resolver {
 
     graph_root: @mut NameBindings,
 
+    // FIXME #6993: should probably map Names to binding_info
     method_map: @mut HashMap<ident, HashSet<def_id>>,
     structs: HashSet<def_id>,
 
@@ -2988,8 +2994,9 @@ impl Resolver {
         }
     }
 
-    /// Resolves a "module prefix". A module prefix is one of (a) `self::`;
+    /// Resolves a "module prefix". A module prefix is one or both of (a) `self::`;
     /// (b) some chain of `super::`.
+    /// grammar: (SELF MOD_SEP ) ? (SUPER MOD_SEP) *
     pub fn resolve_module_prefix(@mut self,
                                  module_: @mut Module,
                                  module_path: &[ident])
@@ -4206,6 +4213,7 @@ impl Resolver {
                            mutability: Mutability,
                            // Maps idents to the node ID for the (outermost)
                            // pattern that binds them
+                           // FIXME #6993: should probably map Names to binding_info
                            bindings_list: Option<@mut HashMap<ident,node_id>>,
                            visitor: ResolveVisitor) {
         let pat_id = pattern.id;
