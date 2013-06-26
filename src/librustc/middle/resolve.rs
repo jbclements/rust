@@ -56,7 +56,7 @@ pub struct binding_info {
 
 // Map from the name in a pattern to its binding mode.
 // FIXME #6993: should probably map Names to binding_info
-pub type BindingMap = HashMap<Name,binding_info>;
+pub type BindingMap = HashMap<ident,binding_info>;
 
 // Implementation resolution
 //
@@ -425,8 +425,7 @@ pub struct Module {
     def_id: Option<def_id>,
     kind: ModuleKind,
 
-    // FIXME #6993: should probably map Names to binding_info
-    children: @mut HashMap<ident, @mut NameBindings>,
+    children: @mut HashMap<Name, @mut NameBindings>,
     imports: @mut ~[@ImportDirective],
 
     // The external module children of this node that were declared with
