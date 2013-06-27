@@ -248,6 +248,17 @@ impl<A:IterBytes,B:IterBytes,C:IterBytes> IterBytes for (A,B,C) {
   }
 }
 
+impl<A:IterBytes,B:IterBytes,C:IterBytes,D:IterBytes> IterBytes for (A,B,C,D) {
+  #[inline]
+  fn iter_bytes(&self, lsb0: bool, f: Cb) -> bool {
+    match *self {
+      (ref a, ref b, ref c, ref d) => {
+        a.iter_bytes(lsb0, f) && b.iter_bytes(lsb0, f) && c.iter_bytes(lsb0, f)
+            && d.iter_bytes(lsb0, f)
+      }
+    }
+  }
+}
 // Move this to vec, probably.
 fn borrow<'x,A>(a: &'x [A]) -> &'x [A] {
     a
