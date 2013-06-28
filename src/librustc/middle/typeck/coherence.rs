@@ -725,19 +725,19 @@ impl CoherenceChecker {
         let mut provided_names = HashSet::new();
         // Implemented methods
         for uint::range(0, all_methods.len()) |i| {
-            provided_names.insert(all_methods[i].ident);
+            provided_names.insert(all_methods[i].ident.name);
         }
         // Default methods
         let r = ty::provided_trait_methods(tcx, trait_did);
         for r.iter().advance |ident| {
             debug!("inserting provided method %s", ident.repr(tcx));
-            provided_names.insert(*ident);
+            provided_names.insert(ident.name);
         }
 
         let r = ty::trait_methods(tcx, trait_did);
         for r.iter().advance |method| {
             debug!("checking for %s", method.ident.repr(tcx));
-            if provided_names.contains(&method.ident) { loop; }
+            if provided_names.contains(&method.ident.name) { loop; }
 
             tcx.sess.span_err(trait_ref_span,
                               fmt!("missing method `%s`",
