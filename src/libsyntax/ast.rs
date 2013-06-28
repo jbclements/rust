@@ -101,7 +101,7 @@ impl<D:Decoder> Decodable<D> for ident {
 impl to_bytes::IterBytes for ident {
     #[inline]
     fn iter_bytes(&self, lsb0: bool, f: to_bytes::Cb) -> bool {
-        self.name.iter_bytes(lsb0, f)
+        self.name.iter_bytes(lsb0, f) && self.ctxt.iter_bytes(lsb0, f)
     }
 }
 
