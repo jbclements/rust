@@ -15,7 +15,7 @@ use ast::{crate, decl_local, empty_ctxt, expr_, expr_mac, local_, mac_invoc_tt};
 use ast::{item_mac, Mrk, stmt_, stmt_decl, stmt_mac, stmt_expr, stmt_semi};
 use ast::{SCTable, token_tree, illegal_ctxt};
 use ast;
-use ast_util::{new_rename, new_mark, resolve};
+use ast_util::{new_rename, new_mark, mtwt_resolve};
 use attr;
 use codemap;
 use codemap::{span, CallInfo, ExpandedFrom, NameAndSpan, spanned};
@@ -830,11 +830,12 @@ pub fn new_ident_resolver() ->
     @fn(ast::ident)->ast::ident {
     |id : ast::ident|
     ast::ident {
-        name : resolve(id),
+        name : mtwt_resolve(id),
         ctxt : empty_ctxt
     }
 }
 
+// this can disappear now, I think:
 // apply mtwt-style resolve to each of the idents, collapsing
 // all of the syntax context to get a new name.
 pub fn mtwt_resolve_crate (crate : &crate) -> crate {
