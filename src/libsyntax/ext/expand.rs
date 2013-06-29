@@ -395,6 +395,7 @@ fn expand_non_macro_stmt (exts: SyntaxEnv,
             // ... but that should be okay, as long as the new names are gensyms
             // for the old ones.
             let idents = @mut ~[];
+            // is this really the right way to call a visitor? it's so clunky!
             ((*name_finder).visit_pat) (expanded_pat,
                                         (idents,
                                          visit::mk_vt(name_finder)));
@@ -455,6 +456,27 @@ pub fn new_name_finder() -> @Visitor<@mut ~[ast::ident]> {
                 }
                 // use the default traversal for non-pat_idents
                 _ => visit::visit_pat(p,(ident_accum,v))
+            }
+        },
+        .. *default_visitor
+    }
+}
+
+// return a visitor that extracts the paths
+// from a given pattern and puts them in a mutable
+// array (passed in to the traversal)
+pub fn new_path_finder() -> @Visitor<@mut ~[@ast::Path]> {
+    let default_visitor = visit::default_visitor();
+    @Visitor{
+        visit_expr :
+            |e:@ast::expr,
+             (path_accum, v):(@mut ~[@ast::Path], visit::vt<@mut ~[@ast::Path]>)| {
+            match *e {
+                ast::expr{id:_,span:_,node:ast::expr_path(p)} => {
+                    path_accum.push(p);
+                    // not calling visit_path, should be fine.
+                }
+                _ => visit::visit_expr(e,(path_accum,v))
             }
         },
         .. *default_visitor
@@ -1011,13 +1033,17 @@ mod test {
         pprust::to_str(resolved_ast,fake_print_crate,get_ident_interner())
     }
 
+    type renaming_test = (&'static str, ~[~[uint]]);
+
     #[test]
     fn automatic_renaming () {
         // need some other way to test these...
-        let teststrs =
+        let tests =
             ~[// b & c should get new names throughout, in the expr too:
-                @"fn a() -> int { let b = 13; let c = b; b+c }",
-                // both x's should be renamed (how is this causing a bug?)
+                ("fn a() -> int { let b = 13; let c = b; b+c }",
+                 3,
+                 ~[~[0,1],~[2]])
+               /* // both x's should be renamed (how is this causing a bug?)
                 @"fn main () {let x : int = 13;x;}",
                 // the use of b before the + should be renamed, the other one not:
                 @"macro_rules! f (($x:ident) => ($x + b)) fn a() -> int { let b = 13; f!(b)}",
@@ -1030,12 +1056,22 @@ mod test {
                 //@"macro_rules! g (($x:ident) => ({macro_rules! f(($y:ident)=>({let $y=3;$x}));f!($x)}))
                 //   fn a(){g!(z)}"
                 // create a really evil test case where a $x appears inside a binding of $x but *shouldnt*
-                // bind because it was inserted by a different macro....
+                // bind because it was inserted by a different macro.... */
             ];
-        for teststrs.iter().advance |s| {
-            // we need regexps to test these!
-            std::io::println(expand_and_resolve_and_pretty_print(*s));
+        for tests.iter().advance |s| {
+            run_renaming_test(s);
         }
+    }
+
+
+    fn run_renaming_test(t : &renaming_test) {
+        let nv = new_name_finder();
+        let pv = new_path_finder();
+        let (teststr,bound_connections) = t;
+        let cr = expand_and_resolve(teststr);
+        let bindings = @mut ~[];
+        (nv.visit_crate)(cr, (bindings, mk_vt(nv)));
+        // unfinished...
     }
 
     #[test]
