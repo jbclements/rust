@@ -609,7 +609,7 @@ pub fn print_item(s: @ps, item: &ast::item) {
         }
         bclose(s, item.span);
       }
-      ast::item_mac(codemap::spanned { node: ast::mac_invoc_tt(ref pth, ref tts),
+      ast::item_mac(codemap::spanned { node: ast::mac_invoc_tt(ref pth, ref tts, ctxt),
                                    _}) => {
         print_visibility(s, item.vis);
         print_path(s, pth, false);
@@ -1004,7 +1004,7 @@ pub fn print_if(s: @ps, test: &ast::expr, blk: &ast::blk,
 
 pub fn print_mac(s: @ps, m: &ast::mac) {
     match m.node {
-      ast::mac_invoc_tt(ref pth, ref tts) => {
+      ast::mac_invoc_tt(ref pth, ref tts, ctxt) => {
         print_path(s, pth, false);
         word(s.s, "!");
         popen(s);
