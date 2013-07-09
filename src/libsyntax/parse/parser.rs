@@ -3275,7 +3275,7 @@ impl Parser {
 
     fn is_self_ident(&self) -> bool {
         match *self.token {
-          token::IDENT(id, false) if id == special_idents::self_
+          token::IDENT(id, false) if id.name == special_idents::self_.name
             => true,
           _ => false
         }
