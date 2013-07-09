@@ -13,7 +13,7 @@ use ast::{crate, expr_, expr_mac, mac_invoc_tt};
 use ast::{item_mac, stmt_, stmt_mac, stmt_expr, stmt_semi};
 use ast::{illegal_ctxt};
 use ast;
-use ast_util::{new_rename, new_mark, resolve};
+use ast_util::{new_rename, new_mark, mtwt_resolve};
 use attr;
 use codemap;
 use codemap::{span, ExpnInfo, NameAndSpan, spanned};
@@ -739,11 +739,10 @@ pub fn new_ident_resolver() ->
     @fn(ast::ident)->ast::ident {
     |id : ast::ident|
     ast::ident {
-        name : resolve(id),
+        name : mtwt_resolve(id),
         ctxt : illegal_ctxt
     }
 }
-
 
 #[cfg(test)]
 mod test {
