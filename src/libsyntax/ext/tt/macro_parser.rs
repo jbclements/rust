@@ -353,8 +353,8 @@ pub fn parse(
                   match_nonterminal(_,_,_) => { bb_eis.push(ei) }
                   match_tok(ref t) => {
                     let mut ei_t = ei;
-                    if (token_name_eq(t,&tok)) {
-                    //if (token::mtwt_token_eq(t,&tok)) {
+                    //if (token_name_eq(t,&tok)) {
+                    if (token::mtwt_token_eq(t,&tok)) {
                         ei_t.idx += 1;
                         next_eis.push(ei_t);
                     }
