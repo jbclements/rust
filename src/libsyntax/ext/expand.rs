@@ -1223,36 +1223,53 @@ mod test {
                   macro_rules! user(($x:ident) => ({letty!($x); $x}))
                   fn main() -> int {user!(z)}",
                  vec!(vec!(0)), false)
-                // no longer a fixme #8062: this test exposes a *potential* bug; our system does
-                // not behave exactly like MTWT, but a conversation with Matthew Flatt
-                // suggests that this can only occur in the presence of local-expand, which
-                // we have no plans to support.
-                // ("fn main() {let hrcoo = 19; macro_rules! getx(()=>(hrcoo)); getx!();}",
-                // ~[~[0]], true)
-                // FIXME #6994: the next string exposes the bug referred to in issue 6994, so I'm
-                // commenting it out.
-                // the z flows into and out of two macros (g & f) along one path, and one
-                // (just g) along the other, so the result of the whole thing should
-                // be "let z_123 = 3; z_123"
-                //"macro_rules! g (($x:ident) =>
-                //   ({macro_rules! f(($y:ident)=>({let $y=3;$x}));f!($x)}))
-                //   fn a(){g!(z)}"
-                // create a really evil test case where a $x appears inside a binding of $x
-                // but *shouldnt* bind because it was inserted by a different macro....
-                // can't write this test case until we have macro-generating macros.
-
-              // FIXME #9383 :
-              //("macro_rules! bad_macro (($ex:expr) => ({(|_x| { $ex }) (9) }))
-              //fn takes_x(_x : int) { assert_eq!(bad_macro!(_x),8); }
-              //fn main() { takes_x(8); }",
-              // // bindings: _x,
-              // ~[]
-              // )
                 );
         for (idx,s) in tests.iter().enumerate() {
             run_renaming_test(s,idx);
         }
     }
+
+    // no longer a fixme #8062: this test exposes a *potential* bug; our system does
+    // not behave exactly like MTWT, but a conversation with Matthew Flatt
+    // suggests that this can only occur in the presence of local-expand, which
+    // we have no plans to support. ... unless it's needed for item hygiene....
+    #[ignore]
+    #[test] fn issue_8062(){
+        run_renaming_test(
+            &("fn main() {let hrcoo = 19; macro_rules! getx(()=>(hrcoo)); getx!();}",
+              vec!(vec!(0)), true), 0)
+    }
+
+    // FIXME #6994:
+    // the z flows into and out of two macros (g & f) along one path, and one
+    // (just g) along the other, so the result of the whole thing should
+    // be "let z_123 = 3; z_123"
+    #[ignore]
+    #[test] fn issue_6994(){
+        run_renaming_test(
+            &("macro_rules! g (($x:ident) =>
+              ({macro_rules! f(($y:ident)=>({let $y=3;$x}));f!($x)}))
+              fn a(){g!(z)}",
+              vec!(vec!(0)),false),
+            0)
+    }
+
+    // create a really evil test case where a $x appears inside a binding of $x
+    // but *shouldnt* bind because it was inserted by a different macro....
+    // can't write this test case until we have macro-generating macros.
+
+    // FIXME #9383 : lambda var hygiene
+    // interesting... can't even write this test, yet, because the name-finder
+    // only finds pattern vars. Time to upgrade test framework.
+    /*#[test]
+    fn issue_9383(){
+        run_renaming_test(
+            &("macro_rules! bad_macro (($ex:expr) => ({(|_x| { $ex }) (9) }))
+              fn takes_x(_x : int) { assert_eq!(bad_macro!(_x),8); }
+              fn main() { takes_x(8); }",
+              vec!(vec!()),false),
+            0)
+    }*/
 
     // run one of the renaming tests
     fn run_renaming_test(t: &RenamingTest, test_idx: uint) {
