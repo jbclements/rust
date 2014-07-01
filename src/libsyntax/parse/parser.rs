@@ -2968,17 +2968,10 @@ impl<'a> Parser<'a> {
             // Parse an expression pattern or exp .. exp.
             //
             // These expressions are limited to literals (possibly
-            // preceded by unary-minus) or identifiers.
+            // preceded by unary-minus).
             let val = self.parse_literal_maybe_minus();
             if self.eat(&token::DOTDOT) {
-                let end = if is_ident_or_path(&self.token) {
-                    let path = self.parse_path(LifetimeAndTypesWithColons)
-                                   .path;
-                    let hi = self.span.hi;
-                    self.mk_expr(lo, hi, ExprPath(path))
-                } else {
-                    self.parse_literal_maybe_minus()
-                };
+                let end = self.parse_literal_maybe_minus();
                 pat = PatRange(val, end);
             } else {
                 pat = PatLit(val);
