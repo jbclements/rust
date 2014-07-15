@@ -20,7 +20,13 @@ use parse::lexer::TokenAndSpan;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-///an unzipping of `TokenTree`s
+/// oh, this is going to be nasty. In order to turn token trees
+/// back into sequences of tokens, we need to be able to unspool
+/// things parsed as macro pattern variables. This is all so
+/// unnecessary... the dollars in the RHSes are really not
+/// necessary.
+
+/// an unzipping of `TokenTree`s
 #[deriving(Clone)]
 struct TtFrame {
     forest: Rc<Vec<ast::TokenTree>>,
@@ -35,6 +41,7 @@ pub struct TtReader<'a> {
     /// the unzipped tree:
     stack: Vec<TtFrame>,
     /* for MBE-style macro transcription */
+    /// A Map from identifiers to pattern bindings
     interpolations: HashMap<Ident, Rc<NamedMatch>>,
     repeat_idx: Vec<uint>,
     repeat_len: Vec<uint>,
@@ -45,7 +52,7 @@ pub struct TtReader<'a> {
 
 /// This can do Macro-By-Example transcription. On the other hand, if
 /// `src` contains no `TTSeq`s and `TTNonterminal`s, `interp` can (and
-/// should) be none.
+/// should) be None.
 pub fn new_tt_reader<'a>(sp_diag: &'a SpanHandler,
                          interp: Option<HashMap<Ident, Rc<NamedMatch>>>,
                          src: Vec<ast::TokenTree> )
@@ -72,6 +79,8 @@ pub fn new_tt_reader<'a>(sp_diag: &'a SpanHandler,
     r
 }
 
+/// Find the correct piece to insert into a pattern match. In the case of
+/// sequence-based matches, must select the correct element from the sequence
 fn lookup_cur_matched_by_matched(r: &TtReader, start: Rc<NamedMatch>) -> Rc<NamedMatch> {
     r.repeat_idx.iter().fold(start, |ad, idx| {
         match *ad {
@@ -84,19 +93,16 @@ fn lookup_cur_matched_by_matched(r: &TtReader, start: Rc<NamedMatch>) -> Rc<Name
     })
 }
 
-fn lookup_cur_matched(r: &TtReader, name: Ident) -> Rc<NamedMatch> {
+/// Find the binding for a pattern variable appearing on the RHS
+fn lookup_cur_matched(r: &TtReader, name: Ident) -> Option<Rc<NamedMatch>> {
     let matched_opt = r.interpolations.find_copy(&name);
     match matched_opt {
-        Some(s) => lookup_cur_matched_by_matched(r, s),
-        None => {
-            r.sp_diag
-             .span_fatal(r.cur_span,
-                         format!("unknown macro variable `{}`",
-                                 token::get_ident(name)).as_slice());
-        }
+        Some(s) => Some(lookup_cur_matched_by_matched(r, s)),
+        None => None
     }
 }
 
+// Doc comment pretty seriously required here:
 #[deriving(Clone)]
 enum LockstepIterSize {
     LisUnconstrained,
@@ -131,15 +137,20 @@ fn lockstep_iter_size(t: &TokenTree, r: &TtReader) -> LockstepIterSize {
             })
         }
         TTTok(..) => LisUnconstrained,
-        TTNonterminal(_, name) => match *lookup_cur_matched(r, name) {
-            MatchedNonterminal(_) => LisUnconstrained,
-            MatchedSeq(ref ads, _) => LisConstraint(ads.len(), name)
+        TTNonterminal(_, name) => match lookup_cur_matched(r, name) {
+            Some(matched) => match *matched {
+                MatchedNonterminal(_) => LisUnconstrained,
+                MatchedSeq(ref ads, _) => LisConstraint(ads.len(), name)
+            },
+            None => LisUnconstrained
         }
     }
 }
 
-/// Return the next token from the TtReader.
+/// Returns the next token from the TtReader.
 /// EFFECT: advances the reader's token field
+/// This takes the place of the ordinary reader, performing
+/// transcription as required on RHSes of MBE macros.
 pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
     // FIXME(pcwalton): Bad copy?
     let ret_val = TokenAndSpan {
@@ -251,26 +262,37 @@ pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
             // FIXME #2887: think about span stuff here
             TTNonterminal(sp, ident) => {
                 r.stack.mut_last().unwrap().idx += 1;
-                match *lookup_cur_matched(r, ident) {
-                    /* sidestep the interpolation tricks for ident because
-                       (a) idents can be in lots of places, so it'd be a pain
-                       (b) we actually can, since it's a token. */
-                    MatchedNonterminal(NtIdent(box sn, b)) => {
+                match lookup_cur_matched(r, ident) {
+                    Some(matched) => match *matched {
+                        /* sidestep the interpolation tricks for ident because
+                        (a) idents can be in lots of places, so it'd be a pain
+                        (b) we actually can, since it's a token. */
+                        MatchedNonterminal(NtIdent(box sn, b)) => {
+                            r.cur_span = sp;
+                            r.cur_tok = IDENT(sn,b);
+                            return ret_val;
+                        }
+                        MatchedNonterminal(ref other_whole_nt) => {
+                            // FIXME(pcwalton): Bad copy.
+                            r.cur_span = sp;
+                            r.cur_tok = INTERPOLATED((*other_whole_nt).clone());
+                            return ret_val;
+                        }
+                        MatchedSeq(..) => {
+                            r.sp_diag.span_fatal(
+                                r.cur_span, /* blame the macro writer */
+                                    format!("variable '{}' is still repeating at this depth",
+                                            token::get_ident(ident)).as_slice());
+                        }
+                    },
+                    // not one of the ones we're replacing. Leave it alone:
+                    None => {
                         r.cur_span = sp;
-                        r.cur_tok = IDENT(sn,b);
+                        // oh... err.... We need to emit a sequence of tokens
+                        // that will appear as a TTNonterminal....
+                        // why can't we just use Token Trees throughout?
+                        r.cur_tok = Token::IDENT(ident,false);
                         return ret_val;
-                    }
-                    MatchedNonterminal(ref other_whole_nt) => {
-                        // FIXME(pcwalton): Bad copy.
-                        r.cur_span = sp;
-                        r.cur_tok = INTERPOLATED((*other_whole_nt).clone());
-                        return ret_val;
-                    }
-                    MatchedSeq(..) => {
-                        r.sp_diag.span_fatal(
-                            r.cur_span, /* blame the macro writer */
-                            format!("variable '{}' is still repeating at this depth",
-                                    token::get_ident(ident)).as_slice());
                     }
                 }
             }
