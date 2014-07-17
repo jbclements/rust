@@ -425,6 +425,8 @@ pub fn parse(sess: &ParseSess,
     }
 }
 
+/// match a nonterminal of the given shape against the input
+/// stream.
 pub fn parse_nt(p: &mut Parser, name: &str) -> Nonterminal {
     match name {
       "item" => match p.parse_item(Vec::new()) {

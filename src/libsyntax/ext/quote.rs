@@ -27,6 +27,11 @@ use std::gc::Gc;
 * construction of the same token tree, with ast::TTNonterminal nodes
 * interpreted as antiquotes (splices).
 *
+*
+* Comment from 2014--the treatment of $ as both pattern binding reference
+* and unquote is a dangerous pun; they're not the same thing. This conflation
+* leads toward defmacro, and is incompatible with hygiene. We can make it
+* work, but it's dangerous.
 */
 
 pub mod rt {
