@@ -231,7 +231,7 @@ pub fn add_new_extension(cx: &mut ExtCtxt,
 
     // The pattern that macro_rules matches.
     // The grammar for macro_rules! is:
-    // $( $lhs:mtcs => $rhs:tt );+
+    // $( $lhs:matchers => $rhs:tt );+
     // ...quasiquoting this would be nice.
     let argument_gram = vec!(
         ms(MatchSeq(vec!(
