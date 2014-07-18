@@ -2356,11 +2356,6 @@ impl<'a> Parser<'a> {
 
     /// parse a single token tree from the input.
     pub fn parse_token_tree(&mut self) -> TokenTree {
-        // FIXME #6994: currently, this is too eager. It
-        // parses token trees but also identifies TTSeq's
-        // and TTNonterminal's; it's too early to know yet
-        // whether something will be a nonterminal or a seq
-        // yet.
         maybe_whole!(deref self, NtTT);
 
         // this is the fall-through for the 'match' below.
@@ -2383,6 +2378,7 @@ impl<'a> Parser<'a> {
                   p.fatal(format!("incorrect close delimiter: `{}`",
                                   token_str).as_slice())
               },
+                // ooh, no, this dollar isn't an unquote:
               /* we ought to allow different depths of unquotation */
               token::DOLLAR if p.quote_depth > 0u => {
                 p.bump();

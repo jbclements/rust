@@ -291,11 +291,38 @@ pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
                         // oh... err.... We need to emit a sequence of tokens
                         // that will appear as a TTNonterminal....
                         // why can't we just use Token Trees throughout?
-                        r.cur_tok = Token::IDENT(ident,false);
+                        r.cur_tok = token::IDENT(ident,false);
                         return ret_val;
                     }
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test{
+    use parse::{new_parse_sess, filemap_to_tts, string_to_filemap};
+    use super::{new_tt_reader, tt_next_token};
+    use parse::token;
+
+    #[test]
+    fn tt_nonterminal_unparsing(){
+        let ps = new_parse_sess();
+        let source_str="($z + $y)".to_string();
+        let test_tts = filemap_to_tts(&ps,
+                                      string_to_filemap(&ps, source_str,
+                                                        "bogofile".to_string()));
+        let mut tt_reader = new_tt_reader(&ps.span_diagnostic,
+                                          None,
+                                          test_tts);
+        assert_eq!(tt_next_token(&mut tt_reader).tok,
+                   token::LPAREN);
+        assert_eq!(tt_next_token(&mut tt_reader).tok,
+                   token::DOLLAR);
+/*
+            (sp_diag: &'a SpanHandler,
+                         interp: Option<HashMap<Ident, Rc<NamedMatch>>>,
+                         src: Vec<ast::TokenTree> )*/
     }
 }
