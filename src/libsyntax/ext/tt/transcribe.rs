@@ -152,11 +152,13 @@ fn lockstep_iter_size(t: &TokenTree, r: &TtReader) -> LockstepIterSize {
 /// This takes the place of the ordinary reader, performing
 /// transcription as required on RHSes of MBE macros.
 pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
-    // FIXME(pcwalton): Bad copy?
+    // this is the cached token:
     let ret_val = TokenAndSpan {
+        // FIXME(pcwalton): Bad copy?
         tok: r.cur_tok.clone(),
         sp: r.cur_span.clone(),
     };
+    // the rest of this code computes the *next* cached token.
     loop {
         let should_pop = match r.stack.last() {
             None => {
@@ -285,13 +287,21 @@ pub fn tt_next_token(r: &mut TtReader) -> TokenAndSpan {
                                             token::get_ident(ident)).as_slice());
                         }
                     },
-                    // not one of the ones we're replacing. Leave it alone:
+                    // not one of the ones we're replacing.
+
+                    // hack on a hack: nonterminals that are unused
+                    // should appear as the original DOLLAR IDENT sequence,
+                    // for re-parsing next time around. To enable this,
+                    // we're going to use the same "replace_token" trick
+                    // as the parser.
                     None => {
-                        r.cur_span = sp;
                         // oh... err.... We need to emit a sequence of tokens
                         // that will appear as a TTNonterminal....
                         // why can't we just use Token Trees throughout?
-                        r.cur_tok = token::IDENT(ident,false);
+                        r.cur_span = sp; // needs to be shortened!
+                        r.cur_tok = token::DOLLAR;
+                        // stow this for next time...
+                        r.next_tok = Some(token::IDENT(ident,false));
                         return ret_val;
                     }
                 }
@@ -305,14 +315,21 @@ mod test{
     use parse::{new_parse_sess, filemap_to_tts, string_to_filemap};
     use super::{new_tt_reader, tt_next_token};
     use parse::token;
+    use parse::lexer;
+    use parse::parser::Parser;
 
     #[test]
     fn tt_nonterminal_unparsing(){
         let ps = new_parse_sess();
         let source_str="($z + $y)".to_string();
-        let test_tts = filemap_to_tts(&ps,
-                                      string_to_filemap(&ps, source_str,
-                                                        "bogofile".to_string()));
+        let filemap = string_to_filemap(&ps, source_str,
+                                        "bogofile".to_string());
+        let cfg = Vec::new();
+        let srdr = lexer::StringReader::new(&ps.span_diagnostic, filemap);
+        let mut p1 = Parser::new(&ps, cfg, box srdr);
+        p1.quote_depth = 1;
+        let test_tts = p1.parse_all_token_trees();
+
         let mut tt_reader = new_tt_reader(&ps.span_diagnostic,
                                           None,
                                           test_tts);
